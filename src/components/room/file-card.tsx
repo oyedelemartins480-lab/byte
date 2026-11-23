@@ -9,7 +9,7 @@ import { FileIcon } from "../icons";
 const cache = new Map<string, { url: string; at: number }>();
 const TTL = 55 * 60 * 1000;
 
-async function signedUrl(path: string) {
+export async function signedUrl(path: string) {
   const hit = cache.get(path);
   if (hit && Date.now() - hit.at < TTL) return hit.url;
   const { data, error } = await createClient().storage.from("attachments").createSignedUrl(path, 3600);

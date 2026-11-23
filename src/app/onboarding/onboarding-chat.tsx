@@ -409,8 +409,8 @@ function Chat({ userId, defaultName, email, signIn, next }: Props) {
           </div>
           {room.lockin && (
             <p className="m-0 text-[13px] leading-normal text-muted">
-              Timed sessions with goals and hourly check-ins land in the next update. Until then it works as a quiet room
-              for your group.
+              In the room, hit &ldquo;Start lock-in&rdquo;, pick a time, and everyone drops a goal. Byte checks in every hour
+              and posts a recap at the end.
             </p>
           )}
           <button

@@ -1,18 +1,24 @@
 "use client";
 
 import { memo, useState } from "react";
+import { GOAL_MET_LABEL } from "@/lib/session";
 import { QUICK_REACTIONS } from "@/lib/stickers";
-import type { FileMeta, GifMeta, Member, Message, StickerMeta } from "@/lib/types";
-import { initials } from "@/lib/utils";
+import type { FileMeta, GifMeta, Member, Message, Recap, StickerMeta, VoiceMeta } from "@/lib/types";
+import { initials, isRecent } from "@/lib/utils";
 import { ReplyIcon, SmileIcon, TrashIcon } from "../icons";
+import { RecapCard } from "../session/recap-card";
 import { FileCard } from "./file-card";
 import { MessageBody } from "./message-body";
 import { Popover } from "./pickers";
+import { VoiceCard } from "./voice-card";
 
 export type ReactionGroup = { emoji: string; count: number; mine: boolean; names: string[] };
 
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 export const fmtTime = (iso: string) => timeFmt.format(new Date(iso));
+
+const DELETABLE = new Set(["text", "gif", "sticker", "file", "voice"]);
+const BOT_TYPES = new Set(["ai", "recap"]);
 
 type Props = {
   m: Message;
@@ -23,6 +29,8 @@ type Props = {
   reply?: { message: Message; author?: Member };
   usernames: Set<string>;
   meUsername: string;
+  calm: boolean;
+  transcribeOn: boolean;
   onReply: (m: Message) => void;
   onReact: (messageId: string, emoji: string) => void;
   onDelete: (m: Message) => void;
@@ -39,6 +47,8 @@ export const MessageItem = memo(function MessageItem({
   reply,
   usernames,
   meUsername,
+  calm,
+  transcribeOn,
   onReply,
   onReact,
   onDelete,
@@ -46,7 +56,8 @@ export const MessageItem = memo(function MessageItem({
   onJumpTo,
 }: Props) {
   const [reacting, setReacting] = useState(false);
-  const name = author?.name ?? "Someone who left";
+  const bot = BOT_TYPES.has(m.type);
+  const name = bot ? "Byte AI" : author?.name ?? "Someone who left";
 
   if (m.type === "system") {
     return (
@@ -70,10 +81,10 @@ export const MessageItem = memo(function MessageItem({
           <span
             aria-hidden="true"
             className={`flex size-9 items-center justify-center rounded-full text-[13px] font-semibold ${
-              isMine ? "bg-inv text-inv-fg" : "bg-sunk text-fg"
+              bot ? "rounded-[10px] bg-inv font-mono text-inv-fg" : isMine ? "bg-inv text-inv-fg" : "bg-sunk text-fg"
             }`}
           >
-            {initials(name)}
+            {bot ? "b" : initials(name)}
           </span>
         )}
       </div>
@@ -82,6 +93,7 @@ export const MessageItem = memo(function MessageItem({
         {!grouped && (
           <div className="flex items-baseline gap-2">
             <span className="text-[15px] font-semibold">{name}</span>
+            {bot && <span className="rounded-full border border-line px-1.5 py-px text-[11px] text-muted">AI</span>}
             <time dateTime={m.created_at} className="text-xs tabular-nums text-muted">
               {fmtTime(m.created_at)}
             </time>
@@ -95,7 +107,7 @@ export const MessageItem = memo(function MessageItem({
             className="btn justify-start border-l-2 border-line py-0 pl-2.5 text-left text-[13px] text-muted"
           >
             <span className="truncate">
-              <span className="font-semibold">{reply.author?.name ?? "Someone"}:</span>{" "}
+              <span className="font-semibold">{reply.message.user_id ? reply.author?.name ?? "Someone" : "Byte AI"}:</span>{" "}
               {reply.message.deleted_at ? "Message deleted" : preview(reply.message)}
             </span>
           </button>
@@ -104,7 +116,7 @@ export const MessageItem = memo(function MessageItem({
         {deleted ? (
           <p className="m-0 text-[15px] italic text-muted">Message deleted</p>
         ) : (
-          <Content m={m} usernames={usernames} meUsername={meUsername} />
+          <Content m={m} usernames={usernames} meUsername={meUsername} calm={calm} transcribeOn={transcribeOn} />
         )}
 
         {m.failed && (
@@ -165,7 +177,7 @@ export const MessageItem = memo(function MessageItem({
           <ActionButton label="Reply" onClick={() => onReply(m)}>
             <ReplyIcon size={16} />
           </ActionButton>
-          {isMine && (
+          {isMine && DELETABLE.has(m.type) && (
             <ActionButton label="Delete message" onClick={() => onDelete(m)}>
               <TrashIcon size={16} />
             </ActionButton>
@@ -184,13 +196,52 @@ function ActionButton({ label, onClick, children }: { label: string; onClick: ()
   );
 }
 
-function Content({ m, usernames, meUsername }: { m: Message; usernames: Set<string>; meUsername: string }) {
+function Tag({ children, strong }: { children: React.ReactNode; strong?: boolean }) {
+  return (
+    <span
+      className={`mr-2 inline-flex rounded-full px-2 py-0.5 align-[1px] text-[11px] font-semibold uppercase tracking-[0.04em] ${
+        strong ? "bg-hi text-hi-fg" : "bg-sunk text-muted"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Collapsed({ label, children }: { label: string; children: React.ReactNode }) {
+  const [show, setShow] = useState(false);
+  if (show) return <>{children}</>;
+  return (
+    <button
+      type="button"
+      onClick={() => setShow(true)}
+      className="btn min-h-9 self-start rounded-lg border border-dashed border-line px-3 text-[13px] text-muted"
+    >
+      {label} · calm mode hid it, tap to show
+    </button>
+  );
+}
+
+function Content({
+  m,
+  usernames,
+  meUsername,
+  calm,
+  transcribeOn,
+}: {
+  m: Message;
+  usernames: Set<string>;
+  meUsername: string;
+  calm: boolean;
+  transcribeOn: boolean;
+}) {
+  const meta = m.meta as Record<string, unknown>;
   switch (m.type) {
     case "gif": {
-      const g = m.meta as unknown as GifMeta;
+      const g = meta as unknown as GifMeta;
       const w = Math.min(280, g.width || 280);
       const h = g.width ? Math.round((w / g.width) * g.height) : 200;
-      return (
+      const img = (
         // eslint-disable-next-line @next/next/no-img-element -- third-party animated GIF
         <img
           src={g.url}
@@ -202,22 +253,55 @@ function Content({ m, usernames, meUsername }: { m: Message; usernames: Set<stri
           style={{ aspectRatio: `${w} / ${h}` }}
         />
       );
+      return calm ? <Collapsed label="GIF">{img}</Collapsed> : img;
     }
     case "sticker": {
-      const s = m.meta as unknown as StickerMeta;
+      const s = meta as unknown as StickerMeta;
       // eslint-disable-next-line @next/next/no-img-element -- local SVG sticker
-      return <img src={s.src} alt={`Sticker: ${s.label}`} width={120} height={120} className="size-[120px]" />;
+      const img = <img src={s.src} alt={`Sticker: ${s.label}`} width={120} height={120} className="size-[120px]" />;
+      return calm ? <Collapsed label={`Sticker: ${s.label}`}>{img}</Collapsed> : img;
     }
     case "file":
-      return <FileCard meta={m.meta as unknown as FileMeta} pending={m.pending} />;
+      return <FileCard meta={meta as unknown as FileMeta} pending={m.pending} />;
+    case "voice": {
+      const v = meta as unknown as VoiceMeta;
+      const recent = isRecent(m.created_at, 3 * 60_000);
+      return <VoiceCard meta={v} pending={m.pending} transcribing={transcribeOn && !v.transcript && recent} />;
+    }
+    case "checkin":
+      return (
+        <p className="m-0 text-[15px] leading-[1.55]">
+          <Tag strong>Goal</Tag>
+          {m.body}
+        </p>
+      );
+    case "progress":
+      return (
+        <p className="m-0 text-[15px] leading-[1.55]">
+          <Tag>Update</Tag>
+          {m.body}
+        </p>
+      );
+    case "done":
+      return (
+        <p className="m-0 text-[15px] leading-[1.55]">
+          <Tag strong>Done · {GOAL_MET_LABEL[((meta.goal_met as "yes" | "partly" | "no") ?? "no")]}</Tag>
+          {m.body}
+        </p>
+      );
+    case "recap":
+      return <RecapCard recap={meta as unknown as Recap} />;
     default:
       return <MessageBody text={m.body} usernames={usernames} me={meUsername} />;
   }
 }
 
 export function preview(m: Message) {
+  const meta = m.meta as Record<string, unknown>;
   if (m.type === "gif") return "GIF";
-  if (m.type === "sticker") return `Sticker: ${(m.meta as unknown as StickerMeta).label}`;
-  if (m.type === "file") return `File: ${(m.meta as unknown as FileMeta).name}`;
+  if (m.type === "sticker") return `Sticker: ${(meta as unknown as StickerMeta).label}`;
+  if (m.type === "file") return `File: ${(meta as unknown as FileMeta).name}`;
+  if (m.type === "voice") return "Voice note";
+  if (m.type === "recap") return "Session recap";
   return m.body.replace(/```[\s\S]*?```/g, "[code]").slice(0, 140);
 }

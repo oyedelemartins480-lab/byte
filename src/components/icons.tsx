@@ -146,6 +146,30 @@ export const PanelIcon = (p: P) => (
   </Icon>
 );
 
+export const MicIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="9" y="3" width="6" height="12" rx="3" />
+    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+  </Icon>
+);
+export const CompassIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m15.5 8.5-2 5-5 2 2-5z" />
+  </Icon>
+);
+export const ChartIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </Icon>
+);
+export const LeafIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M5 19c0-8 6-14 15-14 0 9-6 15-14 15" />
+    <path d="M5 19 13 11" />
+  </Icon>
+);
+
 export function GoogleIcon({ size = 18 }: { size?: number }) {
   return (
     <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24">

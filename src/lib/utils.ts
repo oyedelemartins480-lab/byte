@@ -44,3 +44,15 @@ const URL_RE = /\bhttps?:\/\/[^\s<>"')\]]+/gi;
 export function extractLinks(text: string) {
   return Array.from(new Set(text.match(URL_RE) ?? []));
 }
+
+/** True when `iso` is within `ms` of now. */
+export function isRecent(iso: string, ms: number) {
+  return Date.now() - new Date(iso).getTime() < ms;
+}
+
+/** A streak is live if the last finished session was today or yesterday. */
+export function liveStreak(row: { current_days?: number; last_session_date?: string | null } | null) {
+  if (!row?.last_session_date) return 0;
+  const last = new Date(`${row.last_session_date}T12:00:00`).getTime();
+  return (Date.now() - last) / 86_400_000 < 2 ? row.current_days ?? 0 : 0;
+}

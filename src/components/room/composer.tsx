@@ -2,9 +2,12 @@
 
 import { useRef, useState } from "react";
 import type { GifMeta, Member, Message, StickerMeta } from "@/lib/types";
-import { CodeIcon, PaperclipIcon, ArrowRightIcon, SmileIcon, XIcon } from "../icons";
+import { ArrowRightIcon, CodeIcon, MicIcon, PaperclipIcon, SmileIcon, XIcon } from "../icons";
 import { preview } from "./message-item";
 import { GifPicker, StickerPicker } from "./pickers";
+import { VoiceRecorder } from "./voice-recorder";
+
+const AI_MEMBER: Member = { id: "ai", name: "Byte AI", username: "ai", role: null, member_role: "member" };
 
 const MENTION_RE = /(^|\s)@([a-z0-9_]{0,24})$/i;
 
@@ -20,6 +23,9 @@ export function Composer({
   onSticker,
   onFiles,
   onTyping,
+  onVoice,
+  onError,
+  aiAvailable,
 }: {
   roomName: string;
   members: Member[];
@@ -32,7 +38,11 @@ export function Composer({
   onSticker: (s: StickerMeta) => void;
   onFiles: (files: FileList) => void;
   onTyping: () => void;
+  onVoice: (blob: Blob, seconds: number, mime: string) => void;
+  onError: (msg: string) => void;
+  aiAvailable: boolean;
 }) {
+  const [recording, setRecording] = useState(false);
   const [text, setText] = useState("");
   const [picker, setPicker] = useState<null | "gif" | "sticker">(null);
   const [mention, setMention] = useState<{ query: string; index: number } | null>(null);
@@ -40,7 +50,7 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const matches = mention
-    ? members
+    ? [...(aiAvailable ? [AI_MEMBER] : []), ...members]
         .filter((m) => m.id !== meId)
         .filter(
           (m) =>
@@ -147,6 +157,17 @@ export function Composer({
           </ul>
         )}
 
+        {recording ? (
+          <VoiceRecorder
+            onCancel={() => setRecording(false)}
+            onError={onError}
+            onDone={(blob, secs, mime) => {
+              setRecording(false);
+              onVoice(blob, secs, mime);
+            }}
+          />
+        ) : (
+          <>
         <label htmlFor="composer" className="sr-only">
           Message {roomName}
         </label>
@@ -245,8 +266,11 @@ export function Composer({
           <ToolButton label="Format as code" onClick={wrapCode}>
             <CodeIcon size={18} />
           </ToolButton>
+          <ToolButton label="Record a voice note" onClick={() => setRecording(true)}>
+            <MicIcon size={18} />
+          </ToolButton>
           <span className="hidden flex-1 pr-2 text-right text-xs text-muted sm:block">
-            Enter to send · Shift + Enter for a new line
+            {aiAvailable ? "Enter to send · @ai asks about this room" : "Enter to send · Shift + Enter for a new line"}
           </span>
           <span className="flex-1 sm:hidden" />
           <button
@@ -258,6 +282,8 @@ export function Composer({
             <ArrowRightIcon />
           </button>
         </div>
+          </>
+        )}
       </form>
     </div>
   );

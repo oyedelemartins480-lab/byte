@@ -17,10 +17,15 @@ export async function joinRoom(code: string): Promise<ActionState> {
 export async function createRoom(_prev: ActionState, form: FormData): Promise<ActionState> {
   const name = String(form.get("name") ?? "").trim();
   const type = form.get("type") === "lockin" ? "lockin" : "build";
+  const visibility = form.get("public") === "on" ? "public" : "private";
   if (!name) return { error: "Give the room a name, even a short one." };
   if (name.length > 60) return { error: "Keep the name under 60 characters." };
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_room", { room_name: name, room_type: type });
+  const { data, error } = await supabase.rpc("create_room", {
+    room_name: name,
+    room_type: type,
+    room_visibility: visibility,
+  });
   if (error || !data) return { error: error?.message ?? "We couldn't create the room." };
   revalidatePath("/app", "layout");
   redirect(`/app/r/${(data as { id: string }).id}`);
@@ -50,4 +55,23 @@ export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/");
+}
+
+export async function joinPublicRoom(roomId: string): Promise<ActionState> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("join_public_room", { rid: roomId });
+  if (error) return { error: error.message };
+  revalidatePath("/app", "layout");
+  redirect(`/app/r/${roomId}`);
+}
+
+export async function setCalmMode(on: boolean): Promise<ActionState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { error } = await supabase.from("profiles").update({ calm_mode: on }).eq("id", user.id);
+  if (error) return { error: error.message };
+  revalidatePath("/app", "layout");
 }

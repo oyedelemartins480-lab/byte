@@ -2,24 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { signOut } from "@/app/actions";
+import { useEffect, useState, useTransition } from "react";
+import { setCalmMode, signOut } from "@/app/actions";
 import type { Profile } from "@/lib/supabase/server";
 import type { SidebarRoom } from "@/lib/types";
 import { initials } from "@/lib/utils";
-import { HashIcon, LogoutIcon, Logo, MenuIcon, PlusIcon, TimerIcon, XIcon } from "./icons";
+import { ChartIcon, CompassIcon, HashIcon, LeafIcon, LogoutIcon, Logo, MenuIcon, PlusIcon, TimerIcon, XIcon } from "./icons";
 import { NewRoomDialog } from "./new-room-dialog";
 import { ThemeToggle } from "./theme-provider";
 
 export function AppShell({
   profile,
   rooms,
+  streak,
   children,
 }: {
   profile: Profile;
   rooms: SidebarRoom[];
+  streak: number;
   children: React.ReactNode;
 }) {
+  const [calmPending, startCalm] = useTransition();
+  const [calm, setCalm] = useState(Boolean(profile.calm_mode));
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
   const [dialog, setDialog] = useState<null | "build" | "lockin">(null);
@@ -56,6 +60,27 @@ export function AppShell({
         </button>
       </div>
 
+      <div className="flex flex-col gap-0.5">
+        {(
+          [
+            ["/app/discover", "Discover open rooms", <CompassIcon key="d" size={16} />],
+            ["/app/me", "Your stats", <ChartIcon key="s" size={16} />],
+          ] as const
+        ).map(([href, label, icon]) => (
+          <Link
+            key={href}
+            href={href}
+            aria-current={pathname === href ? "page" : undefined}
+            className={`row flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-sm text-fg no-underline ${
+              pathname === href ? "bg-sunk font-semibold" : ""
+            }`}
+          >
+            <span className="text-muted">{icon}</span>
+            {label}
+          </Link>
+        ))}
+      </div>
+
       <div className="scroll-thin flex flex-1 flex-col gap-5 overflow-y-auto">
         <RoomGroup
           title="Lock-in rooms"
@@ -82,13 +107,36 @@ export function AppShell({
         </button>
       </div>
 
+      <button
+        type="button"
+        role="switch"
+        aria-checked={calm}
+        disabled={calmPending}
+        onClick={() => {
+          const next = !calm;
+          setCalm(next);
+          startCalm(async () => {
+            const res = await setCalmMode(next);
+            if (res?.error) setCalm(!next);
+          });
+        }}
+        title="Calm mode hides typing indicators and folds away GIFs and stickers"
+        className={`btn row min-h-10 justify-start gap-2.5 rounded-[10px] px-2.5 text-sm ${calm ? "bg-sunk font-semibold text-fg" : "text-muted"}`}
+      >
+        <LeafIcon size={16} />
+        <span className="flex-1 text-left">Calm mode</span>
+        <span className="text-xs">{calm ? "On" : "Off"}</span>
+      </button>
+
       <div className="flex items-center gap-2.5 rounded-xl border border-line p-2.5">
         <span className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-inv text-[13px] font-semibold text-inv-fg">
           {initials(profile.name)}
         </span>
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-sm font-semibold">{profile.name}</span>
-          <span className="truncate text-xs text-muted">@{profile.username}</span>
+          <Link href="/app/me" className="truncate text-xs text-muted no-underline hover:underline">
+            {streak > 0 ? `${streak}-day streak` : `@${profile.username}`}
+          </Link>
         </div>
         <ThemeToggle className="!size-9 !rounded-lg" />
         <form action={signOut}>

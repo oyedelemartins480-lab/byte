@@ -38,5 +38,6 @@ export type Profile = {
   role: string | null;
   timezone: string;
   avatar_url: string | null;
+  calm_mode?: boolean;
   created_at: string;
 };

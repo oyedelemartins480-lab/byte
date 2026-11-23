@@ -84,12 +84,17 @@ export function NewRoomDialog({ type, onClose }: { type: null | "build" | "locki
             placeholder={kind === "lockin" ? "Morning lock-in" : "byte-frontend"}
             className="min-h-12 rounded-xl border border-line bg-bg px-3.5 text-base text-fg outline-none placeholder:text-muted focus-visible:border-fg focus-visible:ring-1 focus-visible:ring-fg"
           />
-          {kind === "lockin" && (
-            <p className="m-0 text-[13px] text-muted">
-              Timed sessions with goals and check-ins land in the next update.
-            </p>
-          )}
         </div>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3">
+          <input type="checkbox" name="public" className="mt-1 size-4 accent-[var(--fg)]" />
+          <span className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium">Open to everyone</span>
+            <span className="text-[13px] text-muted">
+              Shows in Discover so anyone on Byte can join and lock in with you. You can change this later.
+            </span>
+          </span>
+        </label>
 
         {state?.error && (
           <p role="alert" className="m-0 text-sm text-err">

@@ -179,7 +179,9 @@ begin
 end;
 $$;
 
-revoke execute on function public.create_room, public.join_room_by_code, public.reset_invite_code from anon;
+-- Functions are executable by PUBLIC by default; lock them to signed-in users.
+revoke execute on function public.create_room, public.join_room_by_code, public.reset_invite_code from public, anon;
+grant execute on function public.create_room, public.join_room_by_code, public.reset_invite_code to authenticated, service_role;
 grant execute on function public.room_preview to anon, authenticated;
 
 -- ───────────────────────── Row-level security ─────────────────────────

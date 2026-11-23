@@ -2,14 +2,17 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { leaveRoom, resetInvite } from "@/app/actions";
-import type { FileMeta, Member, Message, Room } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import type { FileMeta, Member, Message, Participant, Recap, Room, Session, SessionSummary } from "@/lib/types";
 import { extractLinks, formatBytes, initials } from "@/lib/utils";
 import { CopyButton } from "../copy-button";
 import { FileIcon, LinkIcon, XIcon } from "../icons";
+import { Board } from "../session/board";
+import { NotesPanel } from "../session/notes-panel";
 import { Spinner } from "../setup-chat";
 import { fmtTime } from "./message-item";
 
-type Tab = "people" | "links" | "files";
+type Tab = "session" | "people" | "links" | "files";
 
 export function SidePanel({
   room,
@@ -19,6 +22,15 @@ export function SidePanel({
   origin,
   onClose,
   onJumpTo,
+  onRoomChange,
+  session,
+  sessionLive,
+  participants,
+  events,
+  summary,
+  lastRecap,
+  aiState,
+  showBoard,
 }: {
   room: Room;
   meId: string;
@@ -27,8 +39,17 @@ export function SidePanel({
   origin: string;
   onClose: () => void;
   onJumpTo: (id: string) => void;
+  onRoomChange: (r: Partial<Room>) => void;
+  session: Session | null;
+  sessionLive: boolean;
+  participants: Participant[];
+  events: Message[];
+  summary: SessionSummary | null;
+  lastRecap: Recap | null;
+  aiState: "on" | "room-off" | "not-configured";
+  showBoard: boolean;
 }) {
-  const [tab, setTab] = useState<Tab>("people");
+  const [tab, setTab] = useState<Tab>("session");
   const [code, setCode] = useState(room.invite_code);
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
@@ -47,13 +68,24 @@ export function SidePanel({
   const files = useMemo(() => live.filter((m) => m.type === "file").reverse(), [live]);
   const invite = origin ? `${origin}/join/${code}` : "";
 
+  async function updateRoom(patch: Partial<Pick<Room, "ai_enabled" | "visibility">>) {
+    setError("");
+    onRoomChange(patch);
+    const { error: err } = await createClient().from("rooms").update(patch).eq("id", room.id);
+    if (err) {
+      onRoomChange({ ai_enabled: room.ai_enabled, visibility: room.visibility });
+      setError(`Couldn't save: ${err.message}`);
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-1 border-b border-line p-3">
         <div role="tablist" aria-label="Room details" className="flex flex-1 gap-1">
           {(
             [
-              ["people", `People · ${members.length}`],
+              ["session", "Session"],
+              ["people", "People"],
               ["links", "Links"],
               ["files", "Files"],
             ] as const
@@ -64,7 +96,7 @@ export function SidePanel({
               role="tab"
               aria-selected={tab === k}
               onClick={() => setTab(k)}
-              className={`btn min-h-9 flex-1 rounded-lg px-2 text-sm font-medium ${
+              className={`btn min-h-9 flex-1 whitespace-nowrap rounded-lg px-1.5 text-[13px] font-medium ${
                 tab === k ? "bg-inv text-inv-fg" : "text-muted"
               }`}
             >
@@ -78,6 +110,18 @@ export function SidePanel({
       </div>
 
       <div className="scroll-thin flex flex-1 flex-col gap-5 overflow-y-auto p-4">
+        {tab === "session" && (
+          <>
+            <NotesPanel summary={summary} live={sessionLive} aiState={aiState} lastRecap={lastRecap} />
+            {showBoard && session && (
+              <section className="flex flex-col gap-3">
+                <h3 className="m-0 text-sm font-semibold">Who&apos;s locked in</h3>
+                <Board session={session} participants={participants} events={events} members={byId} meId={meId} />
+              </section>
+            )}
+          </>
+        )}
+
         {tab === "people" && (
           <>
             <section aria-labelledby="invite-h" className="flex flex-col gap-2.5 rounded-[14px] border border-line bg-bg p-3.5">
@@ -109,8 +153,32 @@ export function SidePanel({
                   {pending ? <Spinner size={12} /> : null} Reset link (the old one stops working)
                 </button>
               )}
-              {error && <p role="alert" className="m-0 text-[13px] text-err">{error}</p>}
             </section>
+
+            {isOwner && (
+              <section aria-labelledby="settings-h" className="flex flex-col gap-3 rounded-[14px] border border-line p-3.5">
+                <h3 id="settings-h" className="m-0 text-sm font-semibold">
+                  Room settings
+                </h3>
+                <Toggle
+                  label="AI notes and @ai"
+                  hint="Live notes, recaps written by AI, and answers from the room's history."
+                  checked={room.ai_enabled}
+                  onChange={(v) => void updateRoom({ ai_enabled: v })}
+                />
+                <Toggle
+                  label="Open to everyone"
+                  hint="Shows the room in Discover so anyone signed in can join and lock in with you."
+                  checked={room.visibility === "public"}
+                  onChange={(v) => void updateRoom({ visibility: v ? "public" : "private" })}
+                />
+              </section>
+            )}
+            {error && (
+              <p role="alert" className="m-0 text-[13px] text-err">
+                {error}
+              </p>
+            )}
 
             <ul className="m-0 flex list-none flex-col gap-1 p-0">
               {members.map((m) => (
@@ -172,12 +240,8 @@ export function SidePanel({
                   >
                     {prettyUrl(url)}
                   </a>
-                  <button
-                    type="button"
-                    onClick={() => onJumpTo(m.id)}
-                    className="btn justify-start p-0 text-left text-xs text-muted"
-                  >
-                    {byId.get(m.user_id)?.name ?? "Someone"} · {fmtTime(m.created_at)}
+                  <button type="button" onClick={() => onJumpTo(m.id)} className="btn justify-start p-0 text-left text-xs text-muted">
+                    {(m.user_id && byId.get(m.user_id)?.name) ?? "Someone"} · {fmtTime(m.created_at)}
                   </button>
                 </li>
               ))}
@@ -204,7 +268,7 @@ export function SidePanel({
                       <span className="flex min-w-0 flex-col">
                         <span className="truncate text-sm font-semibold">{f.name}</span>
                         <span className="text-xs text-muted">
-                          {formatBytes(f.size)} · {byId.get(m.user_id)?.name ?? "Someone"}
+                          {formatBytes(f.size)} · {(m.user_id && byId.get(m.user_id)?.name) ?? "Someone"}
                         </span>
                       </span>
                     </button>
@@ -215,6 +279,32 @@ export function SidePanel({
           ))}
       </div>
     </div>
+  );
+}
+
+function Toggle({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-sm font-medium">{label}</span>
+        <span className="text-xs leading-normal text-muted">{hint}</span>
+      </span>
+      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
+      <span
+        aria-hidden="true"
+        className="relative mt-0.5 h-6 w-10 shrink-0 rounded-full bg-sunk transition-colors peer-checked:bg-inv peer-focus-visible:ring-2 peer-focus-visible:ring-fg after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-surface after:shadow-sm after:transition-transform peer-checked:after:translate-x-4"
+      />
+    </label>
   );
 }
 
