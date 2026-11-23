@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { GOAL_MET_LABEL } from "@/lib/session";
+import { Blob, Squiggle } from "@/components/decor";
 import { getSession } from "@/lib/supabase/server";
 import { liveStreak } from "@/lib/utils";
 
@@ -49,10 +50,13 @@ export default async function StatsPage() {
   const current = liveStreak(streak);
 
   return (
-    <div className="scroll-thin h-full overflow-y-auto">
+    <div className="scroll-thin relative isolate h-full overflow-y-auto overflow-x-hidden">
+      <Blob variant={1} float className="-right-28 -top-28 -z-10 size-[360px] opacity-80" />
+      <Blob variant={3} outline tone="line" className="right-[18%] top-24 -z-10 size-[180px]" />
       <div className="mx-auto flex max-w-[880px] flex-col gap-8 px-5 py-8 sm:px-8">
-        <header className="flex flex-col gap-2">
-          <h1 className="m-0 font-display text-[36px] font-bold leading-tight tracking-[-0.03em]">Your stats</h1>
+        <header className="relative flex flex-col gap-2 pt-4">
+          <Squiggle className="left-0 top-0 h-4 w-20" />
+          <h1 className="m-0 font-display text-[36px] font-extrabold leading-tight tracking-[-0.02em]">Your stats</h1>
           <p className="m-0 text-muted">Your focus score is 50% time with Byte in focus, 35% hitting your goal, 15% checking in on time.</p>
         </header>
 
@@ -129,7 +133,7 @@ function Stat({ label, value, hint, strong }: { label: string; value: string; hi
   return (
     <div className={`flex flex-col gap-1 rounded-2xl p-4 ${strong ? "bg-hi text-hi-fg" : "border border-line bg-surface"}`}>
       <span className={`text-[13px] ${strong ? "" : "text-muted"}`}>{label}</span>
-      <span className="font-display text-[30px] font-bold leading-tight tracking-[-0.02em] tabular-nums">{value}</span>
+      <span className="font-display text-[30px] font-extrabold leading-tight tracking-[-0.02em] tabular-nums">{value}</span>
       <span className={`text-xs ${strong ? "opacity-80" : "text-muted"}`}>{hint}</span>
     </div>
   );

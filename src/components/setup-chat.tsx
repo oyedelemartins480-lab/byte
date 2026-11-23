@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
+import { PageBackdrop } from "./decor";
 import { ArrowRightIcon, Logo } from "./icons";
 import { ThemeToggle } from "./theme-provider";
 
@@ -37,8 +38,9 @@ export function SetupChatLayout({
   const pct = Math.round((Math.min(step, total) / total) * 100);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
-      <header className="border-b border-line">
+    <div className="isolate flex min-h-dvh flex-col bg-bg">
+      <PageBackdrop />
+      <header className="border-b border-line bg-bg/70 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1160px] flex-wrap items-center gap-4 px-6 py-3.5">
           <Link href="/" aria-label="Byte home" className="flex-1 no-underline">
             <Logo />

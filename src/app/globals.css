@@ -59,7 +59,7 @@
   --color-code: var(--code);
   --color-code-fg: var(--code-fg);
   --font-sans: var(--font-onest), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -145,6 +145,29 @@ p {
   }
 }
 
+/* Decorative helpers */
+.dot-grid {
+  background-image: radial-gradient(var(--line) 1.2px, transparent 1.2px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+}
+
+@keyframes blob-float {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(12px, -18px, 0) rotate(8deg) scale(1.04);
+  }
+  100% {
+    transform: translate3d(-10px, 10px, 0) rotate(-6deg) scale(0.98);
+  }
+}
+.blob-float {
+  animation: blob-float 22s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
 @keyframes rise {
   from {
     opacity: 0;
@@ -163,7 +186,8 @@ p {
   .btn {
     transition: none;
   }
-  .rise {
+  .rise,
+  .blob-float {
     animation: none;
   }
 }

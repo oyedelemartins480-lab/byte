@@ -186,7 +186,7 @@ export function Logo({ withWord = true }: { withWord?: boolean }) {
     <span className="flex items-center gap-2.5 text-fg">
       <span className="flex size-[30px] items-center justify-center rounded-lg bg-inv font-mono text-[15px] text-inv-fg">b</span>
       {withWord && (
-        <span className="font-display text-[21px] font-bold tracking-[-0.02em]">byte</span>
+        <span className="font-display text-[21px] font-extrabold tracking-[-0.02em]">byte</span>
       )}
     </span>
   );

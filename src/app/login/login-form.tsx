@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { PageBackdrop } from "@/components/decor";
 import { GoogleIcon, Logo } from "@/components/icons";
 import { Spinner, safeNext } from "@/components/setup-chat";
 import { ThemeToggle } from "@/components/theme-provider";
@@ -50,7 +51,8 @@ export function LoginForm({ next: rawNext, initialError }: { next: string | null
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="isolate flex min-h-dvh flex-col bg-bg">
+      <PageBackdrop />
       <header className="mx-auto flex w-full max-w-[1160px] items-center justify-between px-6 py-3.5">
         <Link href="/" aria-label="Byte home" className="no-underline">
           <Logo />
@@ -58,9 +60,9 @@ export function LoginForm({ next: rawNext, initialError }: { next: string | null
         <ThemeToggle />
       </header>
       <main className="flex flex-1 items-center justify-center px-6 pb-20">
-        <div className="rise flex w-full max-w-[400px] flex-col gap-6 rounded-[20px] border border-line bg-surface p-8">
+        <div className="rise flex w-full max-w-[400px] flex-col gap-6 rounded-[24px] border border-line bg-surface p-8 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.25)]">
           <div className="flex flex-col gap-2">
-            <h1 className="m-0 font-display text-[32px] font-bold leading-tight tracking-[-0.03em]">Welcome back</h1>
+            <h1 className="m-0 font-display text-[32px] font-extrabold leading-tight tracking-[-0.02em]">Welcome back</h1>
             <p className="m-0 text-muted">Log in to get back to your rooms.</p>
           </div>
 

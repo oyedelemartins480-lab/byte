@@ -92,7 +92,7 @@ export function SessionDialog({
       <form onSubmit={submit} className="flex flex-col gap-5 p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
-            <h2 className="m-0 font-display text-2xl font-bold tracking-[-0.02em]">
+            <h2 className="m-0 font-display text-2xl font-extrabold tracking-[-0.02em]">
               {roomType === "lockin" ? "Start a lock-in" : "Start a session"}
             </h2>
             <p className="m-0 text-sm text-muted">Everyone drops a goal, checks in as you go, and drops what they did at the end.</p>

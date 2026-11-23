@@ -4,10 +4,10 @@ import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 // Self-hosted (SIL Open Font License) so builds never depend on reaching Google Fonts.
-const bricolage = localFont({
-  src: "../fonts/bricolage-grotesque.woff2",
-  variable: "--font-bricolage",
-  weight: "200 800",
+const nunito = localFont({
+  src: "../fonts/nunito.woff2",
+  variable: "--font-nunito",
+  weight: "200 1000",
   display: "swap",
 });
 
@@ -45,7 +45,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${bricolage.variable} ${onest.variable} ${jetbrains.variable}`}
+      className={`${nunito.variable} ${onest.variable} ${jetbrains.variable}`}
     >
       <body className="min-h-dvh antialiased">
         <ThemeProvider>{children}</ThemeProvider>

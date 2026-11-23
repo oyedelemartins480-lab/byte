@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-provider";
 import { ArrowRightIcon, HashIcon, LinkIcon, Logo, TimerIcon } from "@/components/icons";
 import { CopyButton } from "@/components/copy-button";
+import { Blob, Spark, Squiggle } from "@/components/decor";
 
 const preview = [
   { name: "Tolu", initials: "TO", goal: "Ship the login screen", update: "10:00 · Auth form done, wiring Google sign-in", pct: 60 },
@@ -19,12 +20,12 @@ const steps = [
 
 const chain = ["Project chat", "Family group", "Someone's status", "Memes"];
 
-const h2 = "m-0 font-display text-[clamp(30px,3.4vw,46px)] font-bold leading-[1.1] tracking-[-0.03em]";
+const h2 = "m-0 font-display text-[clamp(30px,3.4vw,46px)] font-extrabold leading-[1.1] tracking-[-0.02em]";
 const lead = "m-0 text-lg leading-relaxed text-muted";
 
 export default function Landing() {
   return (
-    <div className="min-h-dvh bg-bg text-fg">
+    <div className="isolate min-h-dvh overflow-x-clip bg-bg text-fg">
       <header className="sticky top-0 z-10 border-b border-line bg-bg/90 backdrop-blur-md">
         <nav aria-label="Main" className="mx-auto flex max-w-[1160px] flex-wrap items-center gap-6 px-6 py-3.5">
           <Link href="/" aria-label="Byte home" className="no-underline">
@@ -55,13 +56,19 @@ export default function Landing() {
       </header>
 
       <main id="top">
-        <section className="mx-auto flex max-w-[1160px] flex-wrap items-center gap-14 px-6 pb-24 pt-20">
-          <div className="flex min-w-0 flex-[1_1_440px] flex-col gap-6">
-            <h1 className="m-0 font-display text-[clamp(42px,5.4vw,76px)] font-bold leading-[1.02] tracking-[-0.035em]">
+        <section className="relative mx-auto flex max-w-[1160px] flex-wrap items-center gap-14 px-6 pb-24 pt-20">
+          <div aria-hidden="true" className="dot-grid pointer-events-none absolute inset-x-0 -top-10 bottom-0 -z-10" />
+          <Blob variant={1} outline tone="line" className="-left-24 top-6 -z-10 size-[300px]" />
+          <Spark tone="fg" className="left-[44%] top-16 size-5" />
+          <div className="relative flex min-w-0 flex-[1_1_440px] flex-col gap-6">
+            <h1 className="m-0 font-display text-[clamp(40px,4.9vw,68px)] font-extrabold leading-[1.02] tracking-[-0.02em]">
               WhatsApp is where you talk.
               <br />
               Byte is where you{" "}
-              <span className="rounded-[10px] bg-hi px-2.5 text-hi-fg">lock in.</span>
+              <span className="relative inline-block">
+                <span className="rounded-[14px] bg-hi px-2.5 text-hi-fg">lock in.</span>
+                <Squiggle tone="fg" className="-bottom-5 left-3 h-4 w-[85%]" />
+              </span>
             </h1>
             <p className="m-0 max-w-[52ch] text-[19px] leading-[1.55] text-muted">
               One web app for your team&apos;s work sessions. Chat, drop your goals, check in every hour and get an AI
@@ -80,8 +87,11 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="min-w-0 flex-[1_1_440px]">
-            <div className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-5 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.25)]">
+          <div className="relative min-w-0 flex-[1_1_440px]">
+            <Blob variant={0} float className="-right-16 -top-14 size-[420px] sm:-right-24" />
+            <Blob variant={2} tone="fg" className="-bottom-10 -left-8 size-[120px] opacity-90" />
+            <Spark tone="hi" className="-left-5 top-10 size-8" />
+            <div className="relative flex flex-col gap-4 rounded-[24px] border border-line bg-surface p-5 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.3)]">
               <div className="flex items-center gap-3">
                 <div className="flex-1">
                   <div className="font-semibold">Morning lock-in</div>
@@ -119,8 +129,10 @@ export default function Landing() {
           </div>
         </section>
 
-        <section aria-labelledby="problem-h" className="border-y border-line bg-surface">
-          <div className="mx-auto flex max-w-[1160px] flex-col gap-8 px-6 py-20">
+        <section aria-labelledby="problem-h" className="relative overflow-hidden border-y border-line bg-surface">
+          <Blob variant={3} tone="sunk" float className="-right-24 -top-20 size-[380px]" />
+          <Spark tone="fg" className="bottom-12 right-[18%] size-5" />
+          <div className="relative mx-auto flex max-w-[1160px] flex-col gap-8 px-6 py-20">
             <h2 id="problem-h" className={`${h2} max-w-[22ch]`}>
               You open WhatsApp for one project message. Twenty minutes later, you&apos;re watching statuses.
             </h2>
@@ -151,30 +163,33 @@ export default function Landing() {
             </p>
           </div>
           <div className="flex flex-wrap gap-5">
-            <article className="flex min-w-0 flex-[1.5_1_420px] flex-col gap-5 rounded-3xl bg-inv p-10 text-inv-fg">
-              <div className="flex items-center gap-2.5 text-sm opacity-80">
+            <article className="relative flex min-w-0 flex-[1.5_1_420px] flex-col gap-5 overflow-hidden rounded-[28px] bg-inv p-10 text-inv-fg">
+              <Blob variant={0} tone="hi" className="-bottom-28 -right-24 size-[320px] opacity-90" />
+              <Blob variant={2} outline tone="inv-fg" className="-right-10 -top-16 size-[200px] opacity-30" />
+              <div className="relative flex items-center gap-2.5 text-sm opacity-80">
                 <TimerIcon /> Lock-In Room
               </div>
-              <h3 className="m-0 max-w-[18ch] font-display text-4xl font-bold leading-[1.08] tracking-[-0.03em]">
+              <h3 className="relative m-0 max-w-[18ch] font-display text-4xl font-extrabold leading-[1.08] tracking-[-0.02em]">
                 Everyone works on their own thing, together.
               </h3>
-              <p className="m-0 max-w-[52ch] text-[17px] leading-relaxed opacity-80">
+              <p className="relative m-0 max-w-[52ch] text-[17px] leading-relaxed opacity-80">
                 Set a time, say 9 to 1. Everyone drops a goal. Byte asks for progress every hour and puts each update on a
                 shared board. At the end, you drop what you finished and Byte checks it against your goal.
               </p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="relative mt-2 flex flex-wrap gap-2">
                 {["Drop a goal", "Hourly check-ins", "Goal vs. done", "Shareable invite link", "Open rooms"].map((t) => (
-                  <span key={t} className="rounded-full border border-inv-fg/25 px-3.5 py-2 text-sm">
+                  <span key={t} className="rounded-full border border-inv-fg/25 bg-inv/60 px-3.5 py-2 text-sm backdrop-blur-sm">
                     {t}
                   </span>
                 ))}
               </div>
             </article>
-            <article className="flex min-w-0 flex-[1_1_320px] flex-col gap-5 rounded-3xl border border-line bg-surface p-10">
-              <div className="flex items-center gap-2.5 text-sm text-muted">
+            <article className="relative flex min-w-0 flex-[1_1_320px] flex-col gap-5 overflow-hidden rounded-[28px] border border-line bg-surface p-10">
+              <Blob variant={1} tone="hi" className="-right-16 -top-16 size-[170px]" />
+              <div className="relative flex items-center gap-2.5 text-sm text-muted">
                 <HashIcon /> Build Room
               </div>
-              <h3 className="m-0 font-display text-[28px] font-bold leading-[1.1] tracking-[-0.025em]">
+              <h3 className="m-0 font-display text-[28px] font-extrabold leading-[1.1] tracking-[-0.015em]">
                 One project, one room.
               </h3>
               <p className="m-0 leading-relaxed text-muted">
@@ -188,11 +203,13 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="how" aria-labelledby="how-h" className="border-y border-line bg-surface">
-          <div className="mx-auto flex max-w-[1160px] flex-wrap gap-14 px-6 py-24">
-            <div className="flex flex-[1_1_320px] flex-col gap-3">
+        <section id="how" aria-labelledby="how-h" className="relative overflow-hidden border-y border-line bg-surface">
+          <Blob variant={2} tone="hi" float className="-bottom-40 -left-32 size-[420px] opacity-70" />
+          <div className="relative mx-auto flex max-w-[1160px] flex-wrap gap-14 px-6 py-24">
+            <div className="relative flex flex-[1_1_320px] flex-col gap-3">
+              <Squiggle tone="fg" className="-top-8 left-0 h-5 w-24" />
               <h2 id="how-h" className={h2}>
-                A morning lock-in, hour by hour
+                A morning lock‑in, hour by hour
               </h2>
               <p className={lead}>
                 It&apos;s body doubling with receipts. You don&apos;t need to be on the same project, or in the same room.
@@ -227,7 +244,10 @@ export default function Landing() {
               GIFs and stickers never reach the AI. The room owner can turn AI notes off.
             </p>
           </div>
-          <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-[18px] rounded-[20px] border border-line bg-surface p-6">
+          <div className="relative min-w-0 flex-[1_1_420px]">
+          <Blob variant={3} tone="sunk" className="-right-14 -top-16 size-[300px]" />
+          <Spark tone="fg" className="-bottom-4 -left-4 size-7" />
+          <div className="relative flex flex-col gap-[18px] rounded-[24px] border border-line bg-surface p-6 shadow-[0_24px_50px_-30px_rgba(0,0,0,0.25)]">
             <div className="flex items-center justify-between">
               <span className="font-semibold">Session recap · Friday</span>
               <span className="rounded-full bg-hi px-2.5 py-1.5 text-[13px] font-semibold text-hi-fg">Team focused 87%</span>
@@ -248,19 +268,23 @@ export default function Landing() {
             </div>
             <RecapBlock label="Blockers">Waiting on a GIF API key.</RecapBlock>
           </div>
+          </div>
         </section>
 
         <section id="score" aria-labelledby="score-h" className="border-y border-line bg-surface">
           <div className="mx-auto flex max-w-[1160px] flex-wrap items-center gap-14 px-6 py-24">
             <div className="flex min-w-0 flex-[1_1_360px] flex-wrap items-center gap-8">
+              <div className="relative">
+              <Blob variant={0} tone="hi" float className="-inset-10 size-[280px]" />
               <div
-                className="flex size-[200px] items-center justify-center rounded-full"
+                className="relative flex size-[200px] items-center justify-center rounded-full"
                 style={{ background: "conic-gradient(var(--fg) 0 82%, var(--sunk) 82% 100%)" }}
               >
                 <div className="flex size-[164px] flex-col items-center justify-center rounded-full bg-surface">
-                  <span className="font-display text-[56px] font-bold leading-none tracking-[-0.03em]">82</span>
+                  <span className="font-display text-[56px] font-extrabold leading-none tracking-[-0.02em]">82</span>
                   <span className="text-[13px] text-muted">Team focus score</span>
                 </div>
+              </div>
               </div>
               <dl className="m-0 flex min-w-[200px] flex-col gap-3 text-[15px]">
                 {[
@@ -295,7 +319,9 @@ export default function Landing() {
           </div>
         </section>
 
-        <section aria-labelledby="invite-h" className="mx-auto flex max-w-[1160px] flex-wrap items-center justify-between gap-10 px-6 py-24">
+        <section aria-labelledby="invite-h" className="relative mx-auto flex max-w-[1160px] flex-wrap items-center justify-between gap-10 px-6 py-24">
+          <Spark tone="fg" className="right-[38%] top-16 size-5" />
+          <Blob variant={1} outline tone="line" className="-bottom-6 right-0 -z-10 size-[220px]" />
           <div className="flex flex-[1_1_380px] flex-col gap-3">
             <h2 id="invite-h" className={h2}>
               Send a link. They&apos;re in.
@@ -312,11 +338,14 @@ export default function Landing() {
         </section>
 
         <section aria-labelledby="cta-h" className="px-6 pb-24">
-          <div className="mx-auto flex max-w-[1160px] flex-wrap items-end justify-between gap-8 rounded-[28px] bg-inv p-[clamp(40px,6vw,80px)] text-inv-fg">
-            <h2 id="cta-h" className="m-0 max-w-[14ch] font-display text-[clamp(36px,4.6vw,64px)] font-bold leading-[1.02] tracking-[-0.035em]">
+          <div className="relative mx-auto flex max-w-[1160px] flex-wrap items-end justify-between gap-8 overflow-hidden rounded-[32px] bg-inv p-[clamp(40px,6vw,80px)] text-inv-fg">
+            <Blob variant={2} tone="hi" float className="-right-20 -top-28 size-[380px]" />
+            <Blob variant={0} outline tone="inv-fg" className="-bottom-24 left-[30%] size-[260px] opacity-25" />
+            <Spark tone="hi" className="left-[46%] top-10 size-6" />
+            <h2 id="cta-h" className="relative m-0 max-w-[14ch] font-display text-[clamp(36px,4.6vw,64px)] font-extrabold leading-[1.02] tracking-[-0.02em]">
               Your phone can stay face down.
             </h2>
-            <Link href="/signup" className="btn rounded-xl bg-inv-fg px-[26px] py-4 text-[17px] font-semibold text-inv">
+            <Link href="/signup" className="btn relative rounded-xl bg-inv-fg px-[26px] py-4 text-[17px] font-semibold text-inv">
               Get started, it&apos;s free
             </Link>
           </div>

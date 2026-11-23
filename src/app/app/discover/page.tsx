@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HashIcon, TimerIcon } from "@/components/icons";
+import { Blob, Squiggle } from "@/components/decor";
 import { getSession } from "@/lib/supabase/server";
 import { JoinPublicButton } from "./join-public-button";
 
@@ -14,10 +15,13 @@ export default async function DiscoverPage() {
   const rooms = (data ?? []) as PublicRoom[];
 
   return (
-    <div className="scroll-thin h-full overflow-y-auto">
+    <div className="scroll-thin relative isolate h-full overflow-y-auto overflow-x-hidden">
+      <Blob variant={1} float className="-right-28 -top-28 -z-10 size-[360px] opacity-80" />
+      <Blob variant={3} outline tone="line" className="right-[18%] top-24 -z-10 size-[180px]" />
       <div className="mx-auto flex max-w-[880px] flex-col gap-6 px-5 py-8 sm:px-8">
-        <header className="flex flex-col gap-2">
-          <h1 className="m-0 font-display text-[36px] font-bold leading-tight tracking-[-0.03em]">Open rooms</h1>
+        <header className="relative flex flex-col gap-2 pt-4">
+          <Squiggle className="left-0 top-0 h-4 w-20" />
+          <h1 className="m-0 font-display text-[36px] font-extrabold leading-tight tracking-[-0.02em]">Open rooms</h1>
           <p className="m-0 max-w-[60ch] text-muted">
             Lock in next to people you haven&apos;t met yet. Drop your own goal, check in, and finish together. Open your own
             room to everyone from its settings.

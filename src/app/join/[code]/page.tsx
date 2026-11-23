@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PageBackdrop } from "@/components/decor";
 import { HashIcon, Logo, TimerIcon } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-provider";
 import { createClient } from "@/lib/supabase/server";
@@ -31,7 +32,8 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="isolate flex min-h-dvh flex-col bg-bg">
+      <PageBackdrop />
       <header className="mx-auto flex w-full max-w-[1160px] items-center justify-between px-6 py-3.5">
         <Link href="/" aria-label="Byte home" className="no-underline">
           <Logo />
@@ -39,7 +41,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
         <ThemeToggle />
       </header>
       <main className="flex flex-1 items-center justify-center px-6 pb-20">
-        <div className="rise flex w-full max-w-[420px] flex-col gap-6 rounded-[20px] border border-line bg-surface p-8">
+        <div className="rise flex w-full max-w-[420px] flex-col gap-6 rounded-[24px] border border-line bg-surface p-8 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.25)]">
           {room ? (
             <>
               <div className="flex flex-col gap-4">
@@ -47,7 +49,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
                   {room.type === "lockin" ? <TimerIcon size={16} /> : <HashIcon size={16} />}
                   {room.type === "lockin" ? "Lock-In Room" : "Build Room"}
                 </span>
-                <h1 className="m-0 break-words font-display text-[32px] font-bold leading-tight tracking-[-0.03em]">
+                <h1 className="m-0 break-words font-display text-[32px] font-extrabold leading-tight tracking-[-0.02em]">
                   {room.name}
                 </h1>
                 <p className="m-0 text-muted">
@@ -77,7 +79,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
           ) : (
             <>
               <div className="flex flex-col gap-2">
-                <h1 className="m-0 font-display text-[28px] font-bold leading-tight tracking-[-0.03em]">
+                <h1 className="m-0 font-display text-[28px] font-extrabold leading-tight tracking-[-0.02em]">
                   This invite link doesn&apos;t work
                 </h1>
                 <p className="m-0 text-muted">

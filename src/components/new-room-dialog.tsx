@@ -35,7 +35,7 @@ export function NewRoomDialog({ type, onClose }: { type: null | "build" | "locki
     >
       <form action={action} className="flex flex-col gap-5 p-6">
         <div className="flex items-start justify-between gap-4">
-          <h2 className="m-0 font-display text-2xl font-bold tracking-[-0.02em]">New room</h2>
+          <h2 className="m-0 font-display text-2xl font-extrabold tracking-[-0.02em]">New room</h2>
           <button type="button" aria-label="Close" onClick={onClose} className="btn size-9 rounded-lg text-muted">
             <XIcon />
           </button>
