@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { notifyOnce, remindersOn, REMINDERS_EVENT } from "@/lib/reminders";
+import { notifyOnce, pushActive, refreshPush, remindersOn, REMINDERS_EVENT } from "@/lib/reminders";
 
 type Upcoming = { id: string; title: string; starts_at: string; room_id: string; rooms: { name: string } | null };
 
@@ -19,7 +19,12 @@ export function SessionReminders() {
   const [on, setOn] = useState(false);
 
   useEffect(() => {
-    const sync = () => setOn(remindersOn());
+    void refreshPush();
+  }, []);
+
+  useEffect(() => {
+    // With server push on, the server sends these; the tab stays quiet.
+    const sync = () => setOn(remindersOn() && !pushActive());
     sync();
     window.addEventListener(REMINDERS_EVENT, sync);
     window.addEventListener("storage", sync);

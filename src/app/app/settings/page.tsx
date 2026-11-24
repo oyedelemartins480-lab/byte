@@ -3,15 +3,33 @@ import { redirect } from "next/navigation";
 import { Blob, Squiggle } from "@/components/decor";
 import { findGravatar, providerPhoto } from "@/lib/avatar";
 import { getSession } from "@/lib/supabase/server";
+import { notionConfig } from "@/lib/notion";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { SettingsForm } from "./settings-form";
 
 export const metadata: Metadata = { title: "Profile & settings · Byte" };
 
-export default async function SettingsPage() {
+async function notionWorkspace(userId: string) {
+  if (!notionConfig().ready) return null;
+  try {
+    const { data } = await createAdminClient()
+      .from("user_connections")
+      .select("workspace_name, workspace_icon")
+      .eq("user_id", userId)
+      .eq("provider", "notion")
+      .maybeSingle();
+    return data ? { name: (data.workspace_name as string) ?? "Notion", icon: (data.workspace_icon as string) ?? null } : null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ notion?: string }> }) {
   const { user, profile } = await getSession();
   if (!user || !profile) redirect("/login?next=/app/settings");
+  const { notion: notionResult } = await searchParams;
 
-  const [gravatar] = await Promise.all([findGravatar(user.email)]);
+  const [gravatar, notion] = await Promise.all([findGravatar(user.email), notionWorkspace(user.id)]);
   const provider = user.app_metadata?.provider === "google" ? "Google" : "Email";
 
   return (
@@ -30,6 +48,7 @@ export default async function SettingsPage() {
           provider={provider}
           googlePhoto={providerPhoto(user)}
           gravatar={gravatar}
+          notion={{ ready: notionConfig().ready, workspace: notion, result: notionResult ?? null }}
         />
       </div>
     </div>

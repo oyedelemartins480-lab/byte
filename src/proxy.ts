@@ -13,7 +13,9 @@ export async function proxy(request: NextRequest) {
   // (e.g. "/?code=…") instead of /auth/callback. Catch that and finish sign-in properly.
   const strayCode = request.nextUrl.searchParams.get("code");
   const strayHash = request.nextUrl.searchParams.get("token_hash");
-  if ((strayCode || strayHash) && request.nextUrl.pathname !== "/auth/callback") {
+  const path0 = request.nextUrl.pathname;
+  // API routes (e.g. Notion's OAuth callback) use ?code= for their own flows.
+  if ((strayCode || strayHash) && path0 !== "/auth/callback" && !path0.startsWith("/api/")) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/callback";
     if (!url.searchParams.get("next")) url.searchParams.set("next", "/onboarding");
@@ -61,5 +63,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|stickers/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|stickers/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

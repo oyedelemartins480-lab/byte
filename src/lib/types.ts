@@ -141,3 +141,13 @@ export type SessionRecapRow = {
   ai: boolean;
   created_at: string;
 };
+
+/** A Google Drive file or Notion page shared into a room (stored in a text message's meta). */
+export type Attachment = {
+  source: "drive" | "notion";
+  title: string;
+  url: string;
+  icon?: string | null;
+  mime?: string;
+  kind?: string;
+};

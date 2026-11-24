@@ -3,11 +3,12 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { GOAL_MET_LABEL } from "@/lib/session";
 import { QUICK_REACTIONS } from "@/lib/stickers";
-import type { FileMeta, GifMeta, Member, Message, Recap, StickerMeta, VoiceMeta } from "@/lib/types";
+import type { Attachment, FileMeta, GifMeta, Member, Message, Recap, StickerMeta, VoiceMeta } from "@/lib/types";
 import { extractLinks, isRecent } from "@/lib/utils";
 import { Avatar } from "@/components/avatar";
 import { GitHubIcon, PencilIcon, ReplyIcon, SmileIcon, TrashIcon } from "../icons";
 import { RecapCard } from "../session/recap-card";
+import { AttachmentCard } from "./attachment-card";
 import { FileCard } from "./file-card";
 import { IntegrationCard } from "./integration-card";
 import { LinkPreview } from "./link-preview";
@@ -389,6 +390,8 @@ function Content({
     case "integration":
       return <IntegrationCard m={m} />;
     default: {
+      const att = meta.attachment as Attachment | undefined;
+      if (att?.url && m.body === att.url) return <AttachmentCard a={att} />;
       const link = m.pending ? null : extractLinks(m.body)[0];
       return (
         <>
@@ -408,5 +411,7 @@ export function preview(m: Message) {
   if (m.type === "voice") return "Voice note";
   if (m.type === "recap") return "Session recap";
   if (m.type === "integration") return `GitHub: ${m.body}`;
+  const att = meta.attachment as Attachment | undefined;
+  if (att?.title) return `${att.source === "notion" ? "Notion" : "Drive"}: ${att.title}`;
   return m.body.replace(/```[\s\S]*?```/g, "[code]").slice(0, 140);
 }

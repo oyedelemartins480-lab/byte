@@ -1,5 +1,6 @@
 "use client";
 
+import { publicOrigin } from "@/lib/site";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { CopyButton } from "@/components/copy-button";
@@ -345,7 +346,7 @@ function Chat({ userId, defaultName, email, signIn, next, avatarUrl }: Props) {
             const created = data as { id: string; invite_code: string };
             setRoom({
               id: created.id,
-              invite: `${window.location.origin}/join/${created.invite_code}`,
+              invite: `${publicOrigin()}/join/${created.invite_code}`,
               lockin: roomKind === "lockin",
             });
             say(

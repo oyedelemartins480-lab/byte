@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { sessionEnd, sessionPhase } from "@/lib/session";
 import { createClient } from "@/lib/supabase/client";
+import { publicOrigin } from "@/lib/site";
 import type {
   FileMeta,
   GifMeta,
@@ -69,6 +70,7 @@ export type RoomViewProps = {
   aiConfigured: boolean;
   transcribeOn: boolean;
   huddleOn: boolean;
+  notionOn: boolean;
 };
 
 export function RoomView({
@@ -87,12 +89,13 @@ export function RoomView({
   aiConfigured,
   transcribeOn,
   huddleOn,
+  notionOn,
 }: RoomViewProps) {
   const supabase = useMemo(() => createClient(), []);
   const mounted = useSyncExternalStore(subscribe, () => true, () => false);
   const origin = useSyncExternalStore(
     subscribe,
-    () => process.env.NEXT_PUBLIC_SITE_URL || window.location.origin,
+    publicOrigin,
     () => "",
   );
   const now = useNow(15_000); // coarse clock for session phase changes
@@ -240,7 +243,7 @@ export function RoomView({
     let subscribedOnce = false;
     const filter = `room_id=eq.${room.id}`;
     const ch = supabase
-      .channel(`room:${room.id}`, { config: { broadcast: { self: false } } })
+      .channel(`room:${room.id}`, { config: { private: true, broadcast: { self: false } } })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter }, (p) => {
         const m = p.new as Message;
         upsert(m);
@@ -303,18 +306,27 @@ export function RoomView({
       .on("broadcast", { event: "typing" }, ({ payload }) => {
         const uid = (payload as { user_id?: string }).user_id;
         if (uid && uid !== meId) setTyping((t) => ({ ...t, [uid]: Date.now() }));
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setConnected(true);
-          if (subscribedOnce) void catchUpRef.current();
-          subscribedOnce = true;
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-          setConnected(false);
-        }
+      });
+    // Private channel: send the signed-in user's token first so Supabase can check membership.
+    let cancelled = false;
+    void supabase.realtime
+      .setAuth()
+      .catch(() => {})
+      .finally(() => {
+        if (cancelled) return;
+        ch.subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            setConnected(true);
+            if (subscribedOnce) void catchUpRef.current();
+            subscribedOnce = true;
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            setConnected(false);
+          }
+        });
       });
     channelRef.current = ch;
     return () => {
+      cancelled = true;
       channelRef.current = null;
       void supabase.removeChannel(ch);
     };
@@ -518,6 +530,15 @@ export function RoomView({
     });
     const failed = Boolean(error && error.code !== "23505");
     setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, pending: false, failed } : x)));
+    // Ping anyone you @mentioned or replied to (desktop notifications).
+    if (!failed && (m.reply_to || /(^|\s)@[a-z0-9_]{3,24}\b/i.test(m.body.replace(/(^|\s)@ai\b/gi, "")))) {
+      void fetch("/api/push/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: m.id }),
+        keepalive: true,
+      }).catch(() => {});
+    }
     return !failed;
   }
 
@@ -982,6 +1003,12 @@ export function RoomView({
             onVoice={(b, s, mime) => void sendVoice(b, s, mime)}
             onError={(msg) => showToast({ text: msg }, 7000)}
             aiAvailable={aiOn}
+            notionOn={notionOn}
+            roomPath={`/app/r/${room.id}`}
+            onShare={(items) => {
+              if (boardMode) setView("chat");
+              for (const a of items) void send("text", a.url, { attachment: a });
+            }}
           />
         </div>
       </section>
@@ -1007,14 +1034,15 @@ export function RoomView({
           lastRecap={lastRecap}
           aiState={!aiConfigured ? "not-configured" : room.ai_enabled ? "on" : "room-off"}
           showBoard={!isLockin && sessionVisible}
-          onMemberRemoved={(uid) => {
-            setMembers((prev) => prev.filter((m) => m.id !== uid));
-            void channelRef.current?.send({ type: "broadcast", event: "member-removed", payload: { user_id: uid } });
+          beforeMemberRemoved={async (uid) => {
+            // Tell them while they can still hear the room (private channels drop non-members).
+            await channelRef.current?.send({ type: "broadcast", event: "member-removed", payload: { user_id: uid } });
           }}
-          onRoomDeleted={() => {
-            void channelRef.current?.send({ type: "broadcast", event: "room-deleted", payload: {} });
-            leaveFor("Room deleted.");
+          onMemberRemoved={(uid) => setMembers((prev) => prev.filter((m) => m.id !== uid))}
+          beforeRoomDeleted={async () => {
+            await channelRef.current?.send({ type: "broadcast", event: "room-deleted", payload: {} });
           }}
+          onRoomDeleted={() => leaveFor("Room deleted.")}
         />
       </aside>
 

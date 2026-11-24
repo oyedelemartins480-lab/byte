@@ -56,9 +56,14 @@ This build covers all five phases of the v1 PRD plus the v1.5 and v2 extras: pro
 **Voice huddles (v2)**
 - One click joins the room's voice huddle (LiveKit). Mute, share your screen (with tab audio), see who's talking. The header shows who's already in.
 
+**Desktop notifications**
+- Real desktop notifications (Web Push) that arrive even with Byte's tab closed: 10 minutes before a lock-in, at the start, at each check-in you owe, at time's up, and when someone @mentions or replies to you. Nothing for regular chat. Choose which kinds in **Profile & settings**. Byte stays on your computer so your phone can stay face down.
+
 **Integrations (v2)**
 - Link previews for GitHub repos, PRs and issues (with state), Notion, Google Docs/Sheets/Slides/Drive, Figma and any page with Open Graph tags. Private pages show a branded card without leaking content.
 - GitHub webhook per room: pushes, PRs, issues and releases post into the chat, and `@ai`, live notes and recaps can use them.
+- **Google Drive**: share Docs, Sheets, Slides or any file from Google's own picker (Byte only sees the files you pick).
+- **Notion**: connect once, then search your pages from the composer and share them as cards.
 
 ## Run it locally
 
@@ -70,6 +75,7 @@ This build covers all five phases of the v1 PRD plus the v1.5 and v2 extras: pro
    2. `20261123010000_sessions_ai_focus.sql`
    3. `20261123020000_grants.sql` (gives signed-in users access to the tables; without it you'll see "permission denied for table profiles")
    4. `20261124000000_profiles_rooms_reading_integrations.sql` (photo storage, room management, message edits, reading goals, GitHub integration)
+   5. `20261125000000_private_realtime_push_connections.sql` (private live channels, desktop notifications, Notion connections). Then turn off **Realtime → Settings → Allow public access**.
 
    (Or with the Supabase CLI: `supabase link`, then `supabase db push`.)
 
@@ -171,7 +177,11 @@ Use two browsers (or a normal and a private window) with two different emails.
 16. Paste a GitHub PR link in chat to see the preview. As owner, **People → Integrations → GitHub → Connect**, add the webhook on a repo, push a commit, and see it post.
 17. **Your stats → Your week, as a card**: download or share the PNG.
 
-## Deploy to Vercel
+## Deploy
+
+Follow **[DEPLOY.md](DEPLOY.md)**: Supabase, Vercel, Google, Notion, notifications and GitHub, in order.
+
+## Deploy to Vercel (short version)
 
 1. Push to GitHub and import the repo at [vercel.com/new](https://vercel.com/new).
 2. Add the same environment variables in Vercel (keep `SUPABASE_SECRET_KEY` server-side; Vercel never exposes non-`NEXT_PUBLIC_` variables to the browser).
@@ -227,10 +237,8 @@ supabase/migrations/             schema, security rules, session logic, realtime
 - GitHub webhooks are checked against a per-room secret (HMAC SHA-256). Only owners can see or change it.
 - Link previews never fetch private, local or cloud-metadata addresses, including after redirects.
 
+- Room live channels are private: only members can join, listen or send (Realtime Authorization).
+- Notion tokens and push subscriptions live in tables the browser can't read; only the server uses them.
+
 **Known limits:**
-- Reminders are browser notifications, so they need Byte open in a tab on that device. Use Add to calendar for phone reminders.
-- Typing indicators, reaction removals, huddle pings and remove/delete notices use Supabase broadcast on a channel named after the room's ID. Anyone who knew a room's ID could listen to those signals (never message content). Before a big public launch, switch them to [private channels with Realtime Authorization](https://supabase.com/docs/guides/realtime/authorization).
-#   b y t e  
- #   b y t e  
- #   b y t e  
- 
+- Desktop notifications need the browser running (it can be minimised, the Byte tab can be closed). Without the push keys, Byte falls back to notifications from an open tab.

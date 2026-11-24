@@ -160,3 +160,18 @@ export async function deleteRoom(roomId: string): Promise<ActionState> {
   if (!data?.length) return { error: "Only the room owner can delete it." };
   revalidatePath("/app", "layout");
 }
+
+export async function setNotifyPrefs(prefs: { notify_sessions?: boolean; notify_mentions?: boolean }): Promise<ActionState> {
+  const patch: Record<string, boolean> = {};
+  if (typeof prefs.notify_sessions === "boolean") patch.notify_sessions = prefs.notify_sessions;
+  if (typeof prefs.notify_mentions === "boolean") patch.notify_mentions = prefs.notify_mentions;
+  if (!Object.keys(patch).length) return;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/app/settings");
+  const { error } = await supabase.from("profiles").update(patch).eq("id", user.id);
+  if (error) return { error: error.message };
+  revalidatePath("/app/settings");
+}

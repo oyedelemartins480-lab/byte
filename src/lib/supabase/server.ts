@@ -39,5 +39,7 @@ export type Profile = {
   timezone: string;
   avatar_url: string | null;
   calm_mode?: boolean;
+  notify_sessions?: boolean;
+  notify_mentions?: boolean;
   created_at: string;
 };

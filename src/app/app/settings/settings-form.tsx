@@ -3,13 +3,14 @@
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useActionState, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
-import { setAvatar, setCalmMode, signOut, updateProfile } from "@/app/actions";
+import { setAvatar, setCalmMode, setNotifyPrefs, signOut, updateProfile } from "@/app/actions";
 import { Avatar } from "@/components/avatar";
 import { BellIcon, GoogleIcon, LeafIcon, LogoutIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { Spinner } from "@/components/setup-chat";
 import { createClient } from "@/lib/supabase/client";
+import { driveReady } from "@/lib/google-drive";
 import type { Profile } from "@/lib/supabase/server";
-import { disableReminders, enableReminders, notificationsSupported, remindersOn, REMINDERS_EVENT } from "@/lib/reminders";
+import { disableReminders, enableReminders, notificationsSupported, pushActive, pushSupported, remindersOn, REMINDERS_EVENT } from "@/lib/reminders";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
@@ -40,18 +41,22 @@ export function SettingsForm({
   provider,
   googlePhoto,
   gravatar,
+  notion,
 }: {
   profile: Profile;
   email: string;
   provider: string;
   googlePhoto: string | null;
   gravatar: string | null;
+  notion: { ready: boolean; workspace: { name: string; icon: string | null } | null; result: string | null };
 }) {
   return (
     <div className="flex flex-col gap-5 pb-10">
       <PhotoCard profile={profile} googlePhoto={googlePhoto} gravatar={gravatar} />
       <ProfileCard profile={profile} />
+      <NotificationsCard sessions={profile.notify_sessions !== false} mentions={profile.notify_mentions !== false} />
       <PreferencesCard calmMode={Boolean(profile.calm_mode)} />
+      <ConnectedAppsCard notion={notion} />
       <Card title="Account">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-col">
@@ -330,7 +335,6 @@ function PreferencesCard({ calmMode }: { calmMode: boolean }) {
           })}
         </div>
       </div>
-      <RemindersSwitch />
       <button
         type="button"
         role="switch"
@@ -363,43 +367,199 @@ function PreferencesCard({ calmMode }: { calmMode: boolean }) {
   );
 }
 
-function RemindersSwitch() {
+function NotificationsCard({ sessions, mentions }: { sessions: boolean; mentions: boolean }) {
   const on = useSyncExternalStore(subscribeReminders, remindersOn, () => false);
+  const push = useSyncExternalStore(subscribeReminders, pushActive, () => false);
   const supported = useSyncExternalStore(subscribe, notificationsSupported, () => true);
-  const [note, setNote] = useState("");
+  const canPush = useSyncExternalStore(subscribe, pushSupported, () => false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const [kinds, setKinds] = useState({ notify_sessions: sessions, notify_mentions: mentions });
+
+  async function toggleMain() {
+    setNote(null);
+    setBusy(true);
+    if (on) {
+      await disableReminders();
+      setBusy(false);
+      return;
+    }
+    const res = await enableReminders();
+    setBusy(false);
+    if (!res.on)
+      setNote({
+        error: true,
+        text: res.blocked
+          ? "Your browser is blocking notifications for Byte. Click the icon left of the address bar, allow Notifications, then try again."
+          : "This browser can't show notifications.",
+      });
+    else if (res.error) setNote({ error: true, text: `${res.error} You'll still get notifications while a Byte tab is open.` });
+  }
+
+  async function setKind(key: keyof typeof kinds, value: boolean) {
+    const before = kinds;
+    setKinds({ ...kinds, [key]: value });
+    const res = await setNotifyPrefs({ [key]: value });
+    if (res?.error) {
+      setKinds(before);
+      setNote({ error: true, text: res.error });
+    }
+  }
+
+  async function test() {
+    setNote(null);
+    setBusy(true);
+    const res = await fetch("/api/push/test", { method: "POST" });
+    setBusy(false);
+    const j = (await res.json().catch(() => ({}))) as { error?: string };
+    setNote(res.ok ? { text: "Sent. It should pop up in a second." } : { error: true, text: j.error ?? "Couldn't send a test." });
+  }
+
   return (
-    <div className="flex flex-col gap-1.5">
+    <Card
+      title="Notifications"
+      hint="Byte lives on your computer so your phone can stay face down. Notifications come to this computer, not your phone."
+    >
       <button
         type="button"
         role="switch"
         aria-checked={on}
-        disabled={!supported}
-        onClick={async () => {
-          setNote("");
-          if (on) return disableReminders();
-          const res = await enableReminders();
-          if (!res.on) setNote(res.blocked ? "Your browser is blocking notifications for Byte. Allow them in the site settings (the icon left of the address bar), then try again." : "This browser can't show notifications.");
-        }}
+        disabled={!supported || busy}
+        onClick={() => void toggleMain()}
         className="btn flex items-start justify-start gap-3 rounded-xl border border-line p-3.5 text-left"
       >
         <BellIcon size={18} className="mt-0.5 shrink-0 text-muted" />
         <span className="flex flex-1 flex-col gap-0.5">
-          <span className="text-sm font-semibold text-fg">Lock-in reminders</span>
+          <span className="text-sm font-semibold text-fg">Desktop notifications on this computer</span>
           <span className="text-[13px] text-muted">
-            {supported
-              ? "A notification 10 minutes before a session in your rooms, when it starts, and when a check-in is due. Works while Byte is open in a tab, on this device."
-              : "This browser can't show notifications. Use Add to calendar on a scheduled session instead."}
+            {!supported
+              ? "This browser can't show notifications."
+              : on && push
+                ? "On. They arrive even when no Byte tab is open, as long as your browser is running."
+                : on
+                  ? "On while a Byte tab is open."
+                  : canPush
+                    ? "Get pinged even when Byte's tab is closed."
+                    : "Get pinged while a Byte tab is open."}
           </span>
         </span>
         <span aria-hidden="true" className={`relative mt-0.5 h-6 w-10 shrink-0 rounded-full transition-colors ${on ? "bg-inv" : "bg-sunk"}`}>
           <span className={`absolute top-0.5 size-5 rounded-full bg-surface shadow transition-[left] ${on ? "left-[18px]" : "left-0.5"}`} />
         </span>
       </button>
+
+      <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" disabled={!on}>
+        <legend className="mb-2 text-sm font-medium">Notify me about</legend>
+        {(
+          [
+            ["notify_sessions", "Lock-ins", "10 minutes before, when one starts, each check-in, and when time's up."],
+            ["notify_mentions", "Mentions and replies", "When someone @mentions you or replies to your message. Nothing for regular chat."],
+          ] as const
+        ).map(([key, label, hint]) => (
+          <label key={key} className={`flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1.5 ${on ? "" : "opacity-50"}`}>
+            <input
+              type="checkbox"
+              checked={kinds[key]}
+              onChange={(e) => void setKind(key, e.target.checked)}
+              className="mt-1 size-4 accent-[var(--fg)]"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium">{label}</span>
+              <span className="text-[13px] text-muted">{hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+
+      {on && push && (
+        <button type="button" onClick={() => void test()} disabled={busy} className="btn self-start min-h-10 rounded-[10px] border border-line px-3.5 text-sm font-medium text-fg">
+          {busy ? <Spinner size={14} /> : <BellIcon size={14} />} Send a test notification
+        </button>
+      )}
       {note && (
-        <p role="alert" className="m-0 text-[13px] text-err">
-          {note}
+        <p role={note.error ? "alert" : "status"} className={`m-0 text-[13px] ${note.error ? "text-err" : "text-muted"}`}>
+          {note.text}
         </p>
       )}
-    </div>
+    </Card>
+  );
+}
+
+const NOTION_RESULT: Record<string, { text: string; error?: boolean }> = {
+  connected: { text: "Notion connected. Share pages from the composer's share button." },
+  cancelled: { text: "Notion connection cancelled.", error: true },
+  expired: { text: "That took too long. Try connecting again.", error: true },
+  failed: { text: "Notion didn't connect. Try again.", error: true },
+  "not-configured": { text: "Notion isn't set up on this server yet.", error: true },
+};
+
+function ConnectedAppsCard({
+  notion,
+}: {
+  notion: { ready: boolean; workspace: { name: string; icon: string | null } | null; result: string | null };
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const result = notion.result ? NOTION_RESULT[notion.result] : null;
+  const icon = notion.workspace?.icon;
+
+  async function disconnect() {
+    setBusy(true);
+    await fetch("/api/integrations/notion", { method: "DELETE" }).catch(() => {});
+    setBusy(false);
+    router.replace("/app/settings");
+    router.refresh();
+  }
+
+  return (
+    <Card title="Connected apps" hint="Share Google Drive files and Notion pages into any room from the composer.">
+      <div className="flex flex-col divide-y divide-line rounded-xl border border-line">
+        <div className="flex items-center gap-3 p-3.5">
+          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-fg font-serif text-lg font-bold text-bg">
+            {icon && !/^https:\/\//.test(icon) ? icon : "N"}
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="text-sm font-semibold">Notion</span>
+            <span className="truncate text-[13px] text-muted">
+              {!notion.ready ? "Not set up on this server" : notion.workspace ? `Connected to ${notion.workspace.name}` : "Search and share your pages"}
+            </span>
+          </span>
+          {notion.ready &&
+            (notion.workspace ? (
+              <span className="flex items-center gap-1.5">
+                <a href="/api/integrations/notion/connect" className="btn min-h-9 rounded-lg px-2.5 text-[13px] font-medium text-fg no-underline">
+                  Pages
+                </a>
+                <button type="button" disabled={busy} onClick={() => void disconnect()} className="btn min-h-9 rounded-lg border border-line px-3 text-[13px] font-medium text-fg">
+                  {busy ? <Spinner size={12} /> : null} Disconnect
+                </button>
+              </span>
+            ) : (
+              <a href="/api/integrations/notion/connect" className="btn min-h-9 rounded-lg bg-inv px-3 text-[13px] font-semibold text-inv-fg no-underline">
+                Connect
+              </a>
+            ))}
+        </div>
+        <div className="flex items-center gap-3 p-3.5">
+          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sunk text-base">▲</span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="text-sm font-semibold">Google Drive</span>
+            <span className="text-[13px] text-muted">
+              {driveReady
+                ? "Ready. Google asks which account to use the first time you share a file. Byte only sees the files you pick."
+                : "Not set up on this server"}
+            </span>
+          </span>
+        </div>
+      </div>
+      {result && (
+        <p role={result.error ? "alert" : "status"} className={`m-0 text-[13px] ${result.error ? "text-err" : "text-muted"}`}>
+          {result.text}
+        </p>
+      )}
+      <p className="m-0 text-xs leading-normal text-muted">
+        Sharing a link doesn&apos;t change who can open the file. Make sure your team has access in Drive or Notion.
+      </p>
+    </Card>
   );
 }

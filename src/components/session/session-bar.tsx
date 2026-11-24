@@ -198,7 +198,11 @@ export function SessionBar({
               onClick={async () => {
                 const res = await enableReminders();
                 setReminderNote(
-                  res.on ? "Reminders on. We'll ping you 10 minutes before." : res.blocked ? "Notifications are blocked for Byte in your browser settings." : "This browser can't show reminders.",
+                  res.on
+                    ? res.push
+                      ? "Notifications on. Byte pings you before it starts and at each check-in, even with the tab closed."
+                      : "Reminders on while Byte is open in a tab. We'll ping you 10 minutes before."
+                    : res.blocked ? "Notifications are blocked for Byte in your browser settings." : "This browser can't show reminders.",
                 );
               }}
               className="btn min-h-10 rounded-[10px] border border-line px-3 text-sm font-medium text-fg"

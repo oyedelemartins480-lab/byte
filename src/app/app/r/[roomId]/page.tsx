@@ -1,4 +1,5 @@
 import { livekitConfig } from "@/lib/livekit";
+import { notionConfig } from "@/lib/notion";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { aiReady, transcribeReady } from "@/lib/ai";
@@ -88,6 +89,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       aiConfigured={aiReady()}
       transcribeOn={transcribeReady()}
       huddleOn={livekitConfig().ready}
+      notionOn={notionConfig().ready}
     />
   );
 }

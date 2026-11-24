@@ -137,6 +137,10 @@ export function transcript(messages: Message[], names: Map<string, string>, time
         case "text":
           // Earlier questions to @ai are noise for the model.
           if (/(^|\s)@ai\b/i.test(m.body)) return null;
+          if (meta.attachment && typeof meta.attachment === "object") {
+            const a = meta.attachment as { source?: string; title?: string; url?: string };
+            return `[${t(m.created_at)}] ${who} shared a ${a.source === "notion" ? "Notion page" : "Google Drive file"}: "${a.title}" (${a.url})`;
+          }
           return `[${t(m.created_at)}] ${who}: ${m.body.slice(0, 800)}`;
         case "checkin":
           return `[${t(m.created_at)}] ${who} set their goal: ${m.body}`;

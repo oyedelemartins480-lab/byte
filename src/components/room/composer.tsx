@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { GifMeta, Member, Message, StickerMeta } from "@/lib/types";
+import type { GifMeta, Member, Message, StickerMeta, Attachment } from "@/lib/types";
 import { ArrowRightIcon, CodeIcon, MicIcon, PaperclipIcon, SmileIcon, XIcon } from "../icons";
 import { preview } from "./message-item";
 import { GifPicker, StickerPicker } from "./pickers";
+import { ShareMenu } from "./share-menu";
 import { VoiceRecorder } from "./voice-recorder";
 
 const AI_MEMBER: Member = { id: "ai", name: "Byte AI", username: "ai", role: null, avatar_url: null, member_role: "member" };
@@ -26,6 +27,9 @@ export function Composer({
   onVoice,
   onError,
   aiAvailable,
+  notionOn,
+  roomPath,
+  onShare,
 }: {
   roomName: string;
   members: Member[];
@@ -41,6 +45,9 @@ export function Composer({
   onVoice: (blob: Blob, seconds: number, mime: string) => void;
   onError: (msg: string) => void;
   aiAvailable: boolean;
+  notionOn: boolean;
+  roomPath: string;
+  onShare: (items: Attachment[]) => void;
 }) {
   const [recording, setRecording] = useState(false);
   const [text, setText] = useState("");
@@ -263,6 +270,7 @@ export function Composer({
               />
             )}
           </div>
+          <ShareMenu notionOn={notionOn} roomPath={roomPath} onShare={onShare} onError={onError} />
           <ToolButton label="Format as code" onClick={wrapCode}>
             <CodeIcon size={18} />
           </ToolButton>

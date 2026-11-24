@@ -36,6 +36,8 @@ export function SidePanel({
   showBoard,
   onMemberRemoved,
   onRoomDeleted,
+  beforeMemberRemoved,
+  beforeRoomDeleted,
 }: {
   room: Room;
   meId: string;
@@ -55,6 +57,8 @@ export function SidePanel({
   showBoard: boolean;
   onMemberRemoved: (userId: string) => void;
   onRoomDeleted: () => void;
+  beforeMemberRemoved: (userId: string) => Promise<unknown>;
+  beforeRoomDeleted: () => Promise<unknown>;
 }) {
   const [tab, setTab] = useState<Tab>("session");
   const [code, setCode] = useState(room.invite_code);
@@ -221,6 +225,7 @@ export function SidePanel({
                           if (!ok) return;
                           start(async () => {
                             setError("");
+                            await beforeMemberRemoved(m.id).catch(() => {});
                             const res = await removeMember(room.id, m.id);
                             if (res?.error) setError(res.error);
                             else onMemberRemoved(m.id);
@@ -238,7 +243,7 @@ export function SidePanel({
 
             {isOwner && <IntegrationsPanel roomId={room.id} meId={meId} origin={origin} />}
 
-            {isOwner && <DeleteRoom room={room} onDeleted={onRoomDeleted} />}
+            {isOwner && <DeleteRoom room={room} beforeDelete={beforeRoomDeleted} onDeleted={onRoomDeleted} />}
 
             {!isOwner && (
               <button
@@ -374,7 +379,7 @@ function RenameRoom({ room, onRenamed }: { room: Room; onRenamed: (name: string)
   );
 }
 
-function DeleteRoom({ room, onDeleted }: { room: Room; onDeleted: () => void }) {
+function DeleteRoom({ room, beforeDelete, onDeleted }: { room: Room; beforeDelete: () => Promise<unknown>; onDeleted: () => void }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [pending, start] = useTransition();
@@ -415,6 +420,7 @@ function DeleteRoom({ room, onDeleted }: { room: Room; onDeleted: () => void }) 
           disabled={typed.trim() !== room.name || pending}
           onClick={() =>
             start(async () => {
+              await beforeDelete().catch(() => {});
               const res = await deleteRoom(room.id);
               if (res?.error) setError(res.error);
               else onDeleted();
