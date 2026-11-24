@@ -230,3 +230,5 @@ supabase/migrations/             schema, security rules, session logic, realtime
 **Known limits:**
 - Reminders are browser notifications, so they need Byte open in a tab on that device. Use Add to calendar for phone reminders.
 - Typing indicators, reaction removals, huddle pings and remove/delete notices use Supabase broadcast on a channel named after the room's ID. Anyone who knew a room's ID could listen to those signals (never message content). Before a big public launch, switch them to [private channels with Realtime Authorization](https://supabase.com/docs/guides/realtime/authorization).
+#   b y t e  
+ 
