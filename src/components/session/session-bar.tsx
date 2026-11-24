@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { enableReminders, notifyOnce, remindersOn, REMINDERS_EVENT } from "@/lib/reminders";
 import {
   clock,
   countdown,
@@ -14,12 +15,28 @@ import {
 } from "@/lib/session";
 import type { Message, Participant, Session } from "@/lib/types";
 import { useNow } from "@/lib/use-now";
-import { ArrowRightIcon, TimerIcon } from "../icons";
+import { ArrowRightIcon, BellIcon, BookIcon, CalendarIcon, TimerIcon } from "../icons";
+import { PagesBar } from "./pages-bar";
+import { useConfirm } from "../confirm-dialog";
 import { Spinner } from "../setup-chat";
 
-export type CheckinFn = (kind: "goal" | "progress" | "done", body: string, met?: "yes" | "partly" | "no") => Promise<string | null>;
+export type CheckinFn = (
+  kind: "goal" | "progress" | "done",
+  body: string,
+  met?: "yes" | "partly" | "no",
+  pages?: { page?: number; total?: number },
+) => Promise<string | null>;
 
 export const RECAP_GRACE_MS = 15 * 60_000;
+
+function subscribeReminders(cb: () => void) {
+  window.addEventListener(REMINDERS_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(REMINDERS_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+}
 
 export function SessionBar({
   session,
@@ -57,21 +74,21 @@ export function SessionBar({
   const [extraUpdate, setExtraUpdate] = useState(false);
   const elapsedPct = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
 
+  // Nudge with a notification when a check-in comes due while Byte is in the background.
+  useEffect(() => {
+    if (due === null || !document.hidden) return;
+    notifyOnce(`checkin:${session.id}:${due}`, `Check-in time · ${session.title}`, "One line on what you got done this stretch.", location.pathname);
+  }, [due, session.id, session.title]);
+  const reminders = useSyncExternalStore(subscribeReminders, remindersOn, () => true);
+  const [reminderNote, setReminderNote] = useState("");
+  const confirm = useConfirm();
+
   const goalHolders = participants.filter((p) => p.goal);
   const waitingOn = goalHolders.filter((p) => !p.dropped_at).length;
 
   let prompt: React.ReactNode = null;
   if (phase !== "ended" && !me?.goal) {
-    prompt = (
-      <PromptForm
-        key="goal"
-        label={`What will you finish by ${clock(end)}?`}
-        placeholder="e.g. Ship the login screen"
-        cta="Drop goal"
-        maxLength={500}
-        onSubmit={(v) => onCheckin("goal", v)}
-      />
-    );
+    prompt = <GoalForm key="goal" endLabel={clock(end)} onSubmit={(v, pages) => onCheckin("goal", v, undefined, pages)} />;
   } else if (phase === "live" && me?.goal && !me.dropped_at && (due !== null || extraUpdate)) {
     prompt = (
       <PromptForm
@@ -86,8 +103,9 @@ export function SessionBar({
         placeholder="One line is enough"
         cta="Post update"
         maxLength={1000}
-        onSubmit={async (v) => {
-          const err = await onCheckin("progress", v);
+        page={me.goal_kind === "reading" && me.pages_total ? { current: me.pages_read ?? 0, total: me.pages_total } : undefined}
+        onSubmit={async (v, page) => {
+          const err = await onCheckin("progress", v, undefined, page === undefined ? undefined : { page });
           if (!err) setExtraUpdate(false);
           return err;
         }}
@@ -103,7 +121,13 @@ export function SessionBar({
       />
     );
   } else if (phase === "ended" && me?.goal && !me.dropped_at) {
-    prompt = <DoneForm goal={me.goal} onSubmit={(v, met) => onCheckin("done", v, met)} />;
+    prompt = (
+      <DoneForm
+        goal={me.goal}
+        page={me.goal_kind === "reading" && me.pages_total ? { current: me.pages_read ?? 0, total: me.pages_total } : undefined}
+        onSubmit={(v, met, page) => onCheckin("done", v, met, page === undefined ? undefined : { page })}
+      />
+    );
   }
 
   return (
@@ -159,11 +183,45 @@ export function SessionBar({
               {me.on_break ? "End break" : "Research break"}
             </button>
           )}
+          {phase === "scheduled" && (
+            <a
+              href={`/api/sessions/${session.id}/ics`}
+              download
+              className="btn min-h-10 rounded-[10px] border border-line px-3 text-sm font-medium text-fg"
+            >
+              <CalendarIcon size={16} /> Add to calendar
+            </a>
+          )}
+          {phase !== "ended" && !reminders && (
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await enableReminders();
+                setReminderNote(
+                  res.on ? "Reminders on. We'll ping you 10 minutes before." : res.blocked ? "Notifications are blocked for Byte in your browser settings." : "This browser can't show reminders.",
+                );
+              }}
+              className="btn min-h-10 rounded-[10px] border border-line px-3 text-sm font-medium text-fg"
+            >
+              <BellIcon size={16} /> Remind me
+            </button>
+          )}
           {canEnd && phase !== "ended" && (
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm(phase === "scheduled" ? "Cancel this session?" : "End the session for everyone now?")) onEnd();
+              onClick={async () => {
+                const ok = await confirm(
+                  phase === "scheduled"
+                    ? { title: "Cancel this session?", body: "It's removed for everyone in the room.", confirmLabel: "Cancel session", cancelLabel: "Keep it", danger: true }
+                    : {
+                        title: "End the session now?",
+                        body: "It ends for everyone. Each person drops what they did, then the recap posts.",
+                        confirmLabel: "End for everyone",
+                        cancelLabel: "Keep going",
+                        danger: true,
+                      },
+                );
+                if (ok) onEnd();
               }}
               className="btn min-h-10 rounded-[10px] px-3 text-sm font-medium text-muted"
             >
@@ -173,6 +231,12 @@ export function SessionBar({
         </div>
       </div>
 
+      {reminderNote && (
+        <p role="status" className="m-0 px-4 pb-2.5 text-[13px] text-muted sm:px-5">
+          {reminderNote}
+        </p>
+      )}
+
       {phase === "live" && (
         <div className="h-1 bg-sunk" aria-hidden="true">
           <div className="h-full bg-fg transition-[width] duration-1000 ease-linear" style={{ width: `${elapsedPct}%` }} />
@@ -180,11 +244,18 @@ export function SessionBar({
       )}
 
       {me?.goal && !prompt && phase !== "ended" && (
-        <p className="m-0 px-4 py-2.5 text-sm sm:px-5">
-          <span className="text-muted">Your goal: </span>
-          {me.goal}
-          {me.on_break && <span className="ml-2 rounded-full bg-sunk px-2 py-0.5 text-xs text-muted">On research break</span>}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 text-sm sm:px-5">
+          <p className="m-0">
+            <span className="text-muted">{me.goal_kind === "reading" ? "Reading: " : "Your goal: "}</span>
+            {me.goal}
+            {me.on_break && <span className="ml-2 rounded-full bg-sunk px-2 py-0.5 text-xs text-muted">On research break</span>}
+          </p>
+          {me.goal_kind === "reading" && (
+            <div className="w-full max-w-[260px]">
+              <PagesBar read={me.pages_read ?? 0} total={me.pages_total ?? null} compact />
+            </div>
+          )}
+        </div>
       )}
 
       {prompt && <div className="bg-hi px-4 py-3 text-hi-fg sm:px-5">{prompt}</div>}
@@ -218,15 +289,18 @@ function PromptForm({
   maxLength,
   onSubmit,
   secondary,
+  page,
 }: {
   label: string;
   placeholder: string;
   cta: string;
   maxLength: number;
-  onSubmit: (v: string) => Promise<string | null>;
+  onSubmit: (v: string, page?: number) => Promise<string | null>;
   secondary?: React.ReactNode;
+  page?: { current: number; total: number };
 }) {
   const [value, setValue] = useState("");
+  const [pageValue, setPageValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const id = `prompt-${cta.replace(/\s/g, "")}`;
@@ -237,11 +311,19 @@ function PromptForm({
         e.preventDefault();
         const v = value.trim();
         if (!v) return setError("Write one line first.");
+        let pg: number | undefined;
+        if (page && pageValue.trim()) {
+          pg = Number(pageValue);
+          if (!Number.isInteger(pg) || pg < 0 || pg > page.total) return setError(`Pick a page from 0 to ${page.total}.`);
+        }
         setBusy(true);
-        const err = await onSubmit(v);
+        const err = await onSubmit(v, pg);
         setBusy(false);
         if (err) setError(err);
-        else setValue("");
+        else {
+          setValue("");
+          setPageValue("");
+        }
       }}
     >
       <label htmlFor={id} className="text-[15px] font-semibold">
@@ -260,6 +342,7 @@ function PromptForm({
           }}
           className="min-h-11 min-w-0 flex-[1_1_260px] rounded-xl border border-hi-fg/25 bg-surface px-3.5 text-base text-fg outline-none placeholder:text-muted focus-visible:border-fg focus-visible:ring-1 focus-visible:ring-fg"
         />
+        {page && <PageInput id={`${id}-page`} value={pageValue} onChange={setPageValue} total={page.total} placeholder={String(page.current)} />}
         <button type="submit" disabled={busy} className="btn min-h-11 rounded-xl bg-inv px-4 font-semibold text-inv-fg">
           {busy ? <Spinner /> : <ArrowRightIcon size={16} />} {cta}
         </button>
@@ -274,8 +357,164 @@ function PromptForm({
   );
 }
 
-function DoneForm({ goal, onSubmit }: { goal: string; onSubmit: (v: string, met: "yes" | "partly" | "no") => Promise<string | null> }) {
+function PageInput({
+  id,
+  value,
+  onChange,
+  total,
+  placeholder,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  total: number;
+  placeholder?: string;
+}) {
+  return (
+    <label htmlFor={id} className="flex min-h-11 items-center gap-1.5 rounded-xl border border-hi-fg/25 bg-surface pl-3 pr-2 text-sm text-muted">
+      <BookIcon size={14} />
+      <span className="sr-only">Page you&apos;re on</span>
+      <span aria-hidden="true">p.</span>
+      <input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={total}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-16 bg-transparent text-base tabular-nums text-fg outline-none placeholder:text-muted [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <span className="tabular-nums">/ {total}</span>
+    </label>
+  );
+}
+
+function GoalForm({ endLabel, onSubmit }: { endLabel: string; onSubmit: (v: string, pages?: { page: number; total: number }) => Promise<string | null> }) {
+  const [kind, setKind] = useState<"task" | "reading">("task");
+  const [value, setValue] = useState("");
+  const [start, setStart] = useState("");
+  const [total, setTotal] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const field =
+    "min-h-11 rounded-xl border border-hi-fg/25 bg-surface px-3.5 text-base text-fg outline-none placeholder:text-muted focus-visible:border-fg focus-visible:ring-1 focus-visible:ring-fg";
+  return (
+    <form
+      className="flex flex-col gap-2.5"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const v = value.trim();
+        if (!v) return setError(kind === "reading" ? "What are you reading?" : "Write one line first.");
+        let pages: { page: number; total: number } | undefined;
+        if (kind === "reading") {
+          const t = Number(total);
+          const s = start.trim() ? Number(start) : 0;
+          if (!Number.isInteger(t) || t < 1 || t > 20000) return setError("How many pages does it have? Use a whole number.");
+          if (!Number.isInteger(s) || s < 0 || s > t) return setError(`Your start page should be between 0 and ${t}.`);
+          pages = { page: s, total: t };
+        }
+        setBusy(true);
+        const err = await onSubmit(v, pages);
+        setBusy(false);
+        if (err) setError(err);
+      }}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label htmlFor="goal-input" className="text-[15px] font-semibold">
+          {kind === "reading" ? `What are you reading until ${endLabel}?` : `What will you finish by ${endLabel}?`}
+        </label>
+        <div role="radiogroup" aria-label="Goal type" className="flex gap-0.5 rounded-[10px] border border-hi-fg/25 p-0.5">
+          {(
+            [
+              ["task", "Task"],
+              ["reading", "Reading"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              role="radio"
+              aria-checked={kind === k}
+              onClick={() => {
+                setKind(k);
+                setError("");
+              }}
+              className={`btn min-h-8 rounded-lg px-3 text-[13px] font-medium ${kind === k ? "bg-inv text-inv-fg" : ""}`}
+            >
+              {k === "reading" && <BookIcon size={13} />} {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <input
+          id="goal-input"
+          value={value}
+          maxLength={500}
+          autoComplete="off"
+          placeholder={kind === "reading" ? "e.g. Designing Data-Intensive Applications, ch. 4–6" : "e.g. Ship the login screen"}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError("");
+          }}
+          className={`${field} min-w-0 flex-[1_1_260px]`}
+        />
+        {kind === "reading" && (
+          <>
+            <label className="flex min-h-11 items-center gap-1.5 rounded-xl border border-hi-fg/25 bg-surface px-3 text-sm">
+              <span className="text-muted">From p.</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={start}
+                placeholder="0"
+                onChange={(e) => setStart(e.target.value)}
+                className="w-14 bg-transparent text-base tabular-nums text-fg outline-none placeholder:text-muted [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </label>
+            <label className="flex min-h-11 items-center gap-1.5 rounded-xl border border-hi-fg/25 bg-surface px-3 text-sm">
+              <span className="text-muted">of</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                value={total}
+                required
+                placeholder="320"
+                onChange={(e) => setTotal(e.target.value)}
+                className="w-16 bg-transparent text-base tabular-nums text-fg outline-none placeholder:text-muted [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span className="text-muted">pages</span>
+            </label>
+          </>
+        )}
+        <button type="submit" disabled={busy} className="btn min-h-11 rounded-xl bg-inv px-4 font-semibold text-inv-fg">
+          {busy ? <Spinner /> : <ArrowRightIcon size={16} />} Drop goal
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="m-0 text-sm font-medium">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+function DoneForm({
+  goal,
+  page,
+  onSubmit,
+}: {
+  goal: string;
+  page?: { current: number; total: number };
+  onSubmit: (v: string, met: "yes" | "partly" | "no", page?: number) => Promise<string | null>;
+}) {
   const [met, setMet] = useState<"yes" | "partly" | "no" | null>(null);
+  const [pageValue, setPageValue] = useState(page ? String(page.current) : "");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -286,8 +525,13 @@ function DoneForm({ goal, onSubmit }: { goal: string; onSubmit: (v: string, met:
         e.preventDefault();
         if (!met) return setError("Did you hit your goal? Pick one.");
         if (!value.trim()) return setError("Write what you finished, even one line.");
+        let pg: number | undefined;
+        if (page && pageValue.trim()) {
+          pg = Number(pageValue);
+          if (!Number.isInteger(pg) || pg < 0 || pg > page.total) return setError(`Pick a page from 0 to ${page.total}.`);
+        }
         setBusy(true);
-        const err = await onSubmit(value.trim(), met);
+        const err = await onSubmit(value.trim(), met, pg);
         setBusy(false);
         if (err) setError(err);
       }}
@@ -328,13 +572,14 @@ function DoneForm({ goal, onSubmit }: { goal: string; onSubmit: (v: string, met:
           value={value}
           maxLength={1000}
           autoComplete="off"
-          placeholder="What did you finish?"
+          placeholder={page ? "Where did you get to? Any takeaways?" : "What did you finish?"}
           onChange={(e) => {
             setValue(e.target.value);
             setError("");
           }}
           className="min-h-11 min-w-0 flex-[1_1_260px] rounded-xl border border-hi-fg/25 bg-surface px-3.5 text-base text-fg outline-none placeholder:text-muted focus-visible:border-fg focus-visible:ring-1 focus-visible:ring-fg"
         />
+        {page && <PageInput id="done-page" value={pageValue} onChange={setPageValue} total={page.total} />}
         <button type="submit" disabled={busy} className="btn min-h-11 rounded-xl bg-inv px-4 font-semibold text-inv-fg">
           {busy ? <Spinner /> : null} Drop it
         </button>

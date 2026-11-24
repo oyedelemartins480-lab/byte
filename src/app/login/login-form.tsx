@@ -6,7 +6,11 @@ import { PageBackdrop } from "@/components/decor";
 import { GoogleIcon, Logo } from "@/components/icons";
 import { Spinner, safeNext } from "@/components/setup-chat";
 import { ThemeToggle } from "@/components/theme-provider";
+import { CODE_RE, EMAIL_CODE_ON, useAuthHashError } from "@/lib/auth-hash";
 import { createClient } from "@/lib/supabase/client";
+
+// Set NEXT_PUBLIC_GOOGLE_AUTH=off to hide Google sign-in (e.g. before it is set up in Supabase).
+const GOOGLE_ON = process.env.NEXT_PUBLIC_GOOGLE_AUTH !== "off";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -16,6 +20,26 @@ export function LoginForm({ next: rawNext, initialError }: { next: string | null
   const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState<"" | "email" | "google">("");
   const [sentTo, setSentTo] = useState("");
+  const [code, setCode] = useState("");
+  const hashError = useAuthHashError();
+  const shownError = error || hashError;
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!CODE_RE.test(code)) return setError("Type the 6-digit code from the email.");
+    setBusy("email");
+    setError("");
+    const { error: err } = await createClient().auth.verifyOtp({ email: sentTo, token: code, type: "email" });
+    if (err) {
+      setBusy("");
+      return setError(
+        err.message.toLowerCase().includes("expired")
+          ? "That code expired. Use a different email or send a new link."
+          : "That code didn't work. Check it and try again.",
+      );
+    }
+    window.location.assign(next);
+  }
 
   const redirectTo = () => `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
@@ -70,14 +94,40 @@ export function LoginForm({ next: rawNext, initialError }: { next: string | null
             <div role="status" className="flex flex-col gap-3 rounded-xl bg-hi p-4 text-hi-fg">
               <span className="font-semibold">Check your inbox</span>
               <span className="text-sm leading-normal">
-                We sent a sign-in link to {sentTo}. Open it on this device. It expires in an hour.
+                We sent a sign-in link to {sentTo}. Open it on this device
+                {EMAIL_CODE_ON ? ", or type the 6-digit code from the email here." : ". It works once and expires in an hour."}
               </span>
+              {EMAIL_CODE_ON && (
+              <form onSubmit={verifyCode} noValidate className="flex gap-2">
+                <label htmlFor="login-code" className="sr-only">
+                  6-digit code
+                </label>
+                <input
+                  id="login-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value.replace(/\D/g, ""));
+                    setError("");
+                  }}
+                  placeholder="123456"
+                  className="min-h-11 min-w-0 flex-1 rounded-xl border border-hi-fg/25 bg-surface px-3.5 font-mono text-base tracking-[0.2em] text-fg outline-none placeholder:text-muted focus-visible:border-fg focus-visible:ring-1 focus-visible:ring-fg"
+                />
+                <button type="submit" disabled={Boolean(busy)} className="btn min-h-11 rounded-xl bg-inv px-4 font-semibold text-inv-fg">
+                  {busy === "email" ? <Spinner /> : null} Sign in
+                </button>
+              </form>
+              )}
               <button type="button" onClick={() => setSentTo("")} className="btn self-start p-0 text-sm font-semibold underline">
                 Use a different email
               </button>
             </div>
           ) : (
             <>
+              {GOOGLE_ON && (
+              <>
               <button
                 type="button"
                 onClick={google}
@@ -89,6 +139,8 @@ export function LoginForm({ next: rawNext, initialError }: { next: string | null
               <div className="flex items-center gap-3 text-[13px] text-muted">
                 <span className="h-px flex-1 bg-line" /> or use email <span className="h-px flex-1 bg-line" />
               </div>
+              </>
+              )}
               <form onSubmit={sendLink} noValidate className="flex flex-col gap-3">
                 <label htmlFor="login-email" className="text-sm font-medium">
                   Email
@@ -123,9 +175,9 @@ export function LoginForm({ next: rawNext, initialError }: { next: string | null
             </>
           )}
 
-          {error && (
+          {shownError && (
             <p role="alert" className="m-0 text-sm text-err">
-              {error}
+              {shownError}
             </p>
           )}
 

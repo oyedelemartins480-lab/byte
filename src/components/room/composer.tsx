@@ -7,7 +7,7 @@ import { preview } from "./message-item";
 import { GifPicker, StickerPicker } from "./pickers";
 import { VoiceRecorder } from "./voice-recorder";
 
-const AI_MEMBER: Member = { id: "ai", name: "Byte AI", username: "ai", role: null, member_role: "member" };
+const AI_MEMBER: Member = { id: "ai", name: "Byte AI", username: "ai", role: null, avatar_url: null, member_role: "member" };
 
 const MENTION_RE = /(^|\s)@([a-z0-9_]{0,24})$/i;
 

@@ -170,6 +170,86 @@ export const LeafIcon = (p: P) => (
   </Icon>
 );
 
+export const GearIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+  </Icon>
+);
+export const PencilIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+  </Icon>
+);
+export const BellIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+    <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
+  </Icon>
+);
+export const CalendarIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="18" rx="3" />
+    <path d="M16 2v4M8 2v4M3 10h18" />
+  </Icon>
+);
+export const HeadphonesIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+    <path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z" />
+  </Icon>
+);
+export const ScreenIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="2" y="3" width="20" height="14" rx="2" />
+    <path d="M8 21h8M12 17v4" />
+  </Icon>
+);
+export const MicOffIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M2 2l20 20" />
+    <path d="M9 9v3a3 3 0 0 0 5.1 2.1M15 9.3V5a3 3 0 0 0-5.9-.7" />
+    <path d="M19 10v2a7 7 0 0 1-.9 3.4M5 10v2a7 7 0 0 0 11.8 5.1M12 19v3" />
+  </Icon>
+);
+export const PhoneOffIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.4 2.1L9 10.7" />
+    <path d="M22 2L2 22" />
+  </Icon>
+);
+export const BookIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z" />
+    <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
+  </Icon>
+);
+export const DownloadIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+  </Icon>
+);
+export const UploadIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 21V9M7 14l5-5 5 5M5 3h14" />
+  </Icon>
+);
+export const ShareIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+  </Icon>
+);
+export function GitHubIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z" />
+    </svg>
+  );
+}
 export function GoogleIcon({ size = 18 }: { size?: number }) {
   return (
     <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24">

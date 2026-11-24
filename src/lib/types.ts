@@ -16,6 +16,7 @@ export type Member = {
   name: string;
   username: string;
   role: string | null;
+  avatar_url: string | null;
   member_role: "owner" | "member";
 };
 
@@ -30,7 +31,8 @@ export type MessageType =
   | "progress"
   | "done"
   | "ai"
-  | "recap";
+  | "recap"
+  | "integration";
 
 export type GifMeta = { url: string; preview?: string; width: number; height: number; title?: string };
 export type StickerMeta = { id: string; src: string; label: string };
@@ -85,6 +87,9 @@ export type Participant = {
   break_seconds: number;
   on_break: boolean;
   focus_score: number | null;
+  goal_kind?: "task" | "reading";
+  pages_total?: number | null;
+  pages_read?: number | null;
   joined_at: string;
   dropped_at: string | null;
 };
@@ -108,6 +113,8 @@ export type RecapPerson = {
   goal_met: "yes" | "partly" | "no" | null;
   focus_pct: number | null;
   score: number | null;
+  pages_read?: number | null;
+  pages_total?: number | null;
 };
 
 export type Recap = {

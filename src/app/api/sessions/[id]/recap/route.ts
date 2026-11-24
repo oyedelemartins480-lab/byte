@@ -5,7 +5,7 @@ import { UUID_RE, json, sessionForUser } from "@/lib/server-guards";
 import type { Message, Participant, Recap, Session, SessionSummary } from "@/lib/types";
 import { extractLinks } from "@/lib/utils";
 
-const RECAP_TYPES = ["text", "checkin", "progress", "done", "file", "voice"];
+const RECAP_TYPES = ["text", "checkin", "progress", "done", "file", "voice", "integration"];
 
 /**
  * Scores the session and posts the recap card. Works without AI too: then the recap
@@ -50,9 +50,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const summary = sum as SessionSummary | null;
     const messages = ((rows ?? []) as Message[]).reverse();
 
-    const ids = Array.from(new Set([...participants.map((p) => p.user_id), ...messages.map((m) => m.user_id)].filter(Boolean))) as string[];
-    const { data: profiles } = ids.length ? await admin.from("profiles").select("id, name").in("id", ids) : { data: [] };
+    const ids = Array.from(
+      new Set([fresh.created_by, ...participants.map((p) => p.user_id), ...messages.map((m) => m.user_id)].filter(Boolean)),
+    ) as string[];
+    const { data: profiles } = await admin.from("profiles").select("id, name, timezone").in("id", ids);
     const names = new Map((profiles ?? []).map((p) => [p.id as string, p.name as string]));
+    const tz = ((profiles ?? []).find((p) => p.id === fresh.created_by)?.timezone as string) || "UTC";
 
     const people = participants.map((p) => ({
       user_id: p.user_id,
@@ -62,6 +65,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       goal_met: p.goal_met,
       focus_pct: focusPct(p),
       score: p.focus_score,
+      pages_read: p.goal_kind === "reading" ? (p.pages_read ?? 0) : null,
+      pages_total: p.goal_kind === "reading" ? (p.pages_total ?? null) : null,
     }));
     const links = Array.from(
       new Set(messages.filter((m) => m.type === "text" && !m.deleted_at).flatMap((m) => extractLinks(m.body))),
@@ -88,7 +93,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
             (p) =>
               `- ${p.name}: goal "${p.goal}"; finished: ${p.done ? `"${p.done}"` : "(didn't drop)"}; hit goal: ${
                 p.goal_met ?? "unknown"
-              }; focus ${p.focus_pct ?? "?"}%`,
+              }; focus ${p.focus_pct ?? "?"}%${p.pages_total ? `; reading, reached page ${p.pages_read} of ${p.pages_total}` : ""}`,
           )
           .join("\n");
         const text = await chat({
@@ -99,7 +104,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
             fresh.team_score ?? "n/a"
           }.\n\nGoals vs done:\n${goals || "(none)"}\n\nRunning notes:\n${
             summary ? JSON.stringify({ summary: summary.summary, ...summary.extracted }) : "(none)"
-          }\n\nLast messages:\n${transcript(messages.slice(-80), names)}`,
+          }\n\nLast messages:\n${transcript(messages.slice(-80), names, tz)}`,
         });
         const parsed = parseNotes(text);
         if (parsed.summary) {

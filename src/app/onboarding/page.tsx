@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { safeNextServer } from "@/lib/utils";
 import { getSession } from "@/lib/supabase/server";
+import { findGravatar, providerPhoto } from "@/lib/avatar";
 import { OnboardingChat } from "./onboarding-chat";
 
 export const metadata: Metadata = { title: "Set up · Byte" };
@@ -19,6 +20,7 @@ export default async function OnboardingPage({
 
   const meta = user.user_metadata ?? {};
   const defaultName = String(meta.full_name ?? meta.name ?? "").trim();
+  const avatar = providerPhoto(user) ?? (await findGravatar(user.email));
   const signIn = user.app_metadata?.provider === "google" ? "Google" : "Email link";
 
   return (
@@ -28,6 +30,7 @@ export default async function OnboardingPage({
       email={user.email ?? ""}
       signIn={signIn}
       next={next}
+      avatarUrl={avatar}
     />
   );
 }

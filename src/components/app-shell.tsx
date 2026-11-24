@@ -6,9 +6,11 @@ import { useEffect, useState, useTransition } from "react";
 import { setCalmMode, signOut } from "@/app/actions";
 import type { Profile } from "@/lib/supabase/server";
 import type { SidebarRoom } from "@/lib/types";
-import { initials } from "@/lib/utils";
-import { ChartIcon, CompassIcon, HashIcon, LeafIcon, LogoutIcon, Logo, MenuIcon, PlusIcon, TimerIcon, XIcon } from "./icons";
+import { Avatar, CalmContext } from "./avatar";
+import { ChartIcon, CompassIcon, GearIcon, HashIcon, LeafIcon, LogoutIcon, Logo, MenuIcon, PlusIcon, TimerIcon, XIcon } from "./icons";
+import { ConfirmProvider } from "./confirm-dialog";
 import { NewRoomDialog } from "./new-room-dialog";
+import { SessionReminders } from "./session-reminders";
 import { ThemeToggle } from "./theme-provider";
 
 export function AppShell({
@@ -24,6 +26,11 @@ export function AppShell({
 }) {
   const [calmPending, startCalm] = useTransition();
   const [calm, setCalm] = useState(Boolean(profile.calm_mode));
+  const [serverCalm, setServerCalm] = useState(Boolean(profile.calm_mode));
+  if (Boolean(profile.calm_mode) !== serverCalm) {
+    setServerCalm(Boolean(profile.calm_mode));
+    setCalm(Boolean(profile.calm_mode));
+  }
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
   const [dialog, setDialog] = useState<null | "build" | "lockin">(null);
@@ -65,6 +72,7 @@ export function AppShell({
           [
             ["/app/discover", "Discover open rooms", <CompassIcon key="d" size={16} />],
             ["/app/me", "Your stats", <ChartIcon key="s" size={16} />],
+            ["/app/settings", "Profile & settings", <GearIcon key="g" size={16} />],
           ] as const
         ).map(([href, label, icon]) => (
           <Link
@@ -129,9 +137,9 @@ export function AppShell({
       </button>
 
       <div className="flex items-center gap-2.5 rounded-xl border border-line p-2.5">
-        <span className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-inv text-[13px] font-semibold text-inv-fg">
-          {initials(profile.name)}
-        </span>
+        <Link href="/app/settings" aria-label="Profile and settings" className="shrink-0 rounded-full">
+          <Avatar name={profile.name} url={profile.avatar_url} size={34} tone="inv" />
+        </Link>
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-sm font-semibold">{profile.name}</span>
           <Link href="/app/me" className="truncate text-xs text-muted no-underline hover:underline">
@@ -149,6 +157,8 @@ export function AppShell({
   );
 
   return (
+    <CalmContext.Provider value={calm}>
+    <ConfirmProvider>
     <div className="flex h-dvh overflow-hidden bg-bg">
       <aside className="hidden w-[264px] shrink-0 border-r border-line bg-surface md:block">{nav}</aside>
 
@@ -175,7 +185,10 @@ export function AppShell({
       </div>
 
       <NewRoomDialog type={dialog} onClose={() => setDialog(null)} />
+      <SessionReminders />
     </div>
+    </ConfirmProvider>
+    </CalmContext.Provider>
   );
 }
 

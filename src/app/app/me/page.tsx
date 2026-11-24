@@ -5,6 +5,7 @@ import { GOAL_MET_LABEL } from "@/lib/session";
 import { Blob, Squiggle } from "@/components/decor";
 import { getSession } from "@/lib/supabase/server";
 import { liveStreak } from "@/lib/utils";
+import { WeekCardShare } from "./week-card-share";
 
 export const metadata: Metadata = { title: "Your stats · Byte" };
 
@@ -66,6 +67,8 @@ export default async function StatsPage() {
           <Stat label="Goals hit" value={`${hit} of ${history.length}`} hint="Sessions you dropped in" />
           <Stat label="Focused time" value={`${hours}h`} hint="With Byte in focus" />
         </section>
+
+        <WeekCardShare name={profile.name} />
 
         <section aria-labelledby="badges-h" className="flex flex-col gap-3">
           <h2 id="badges-h" className="m-0 text-lg font-semibold">

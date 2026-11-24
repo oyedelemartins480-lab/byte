@@ -4,7 +4,7 @@
 
 Byte is a web app for team work sessions: real-time rooms, timed lock-ins with goals and hourly check-ins, AI notes and recaps, and a focus score. It all lives on your laptop, so your phone stays face down.
 
-This build covers all five phases of the v1 PRD. Voice huddles, the shareable weekly stat card (v1.5) and integrations (v2) are not in it yet.
+This build covers all five phases of the v1 PRD plus the v1.5 and v2 extras: profile photos, message editing, room management, lock-in reminders, a shareable weekly stat card, a reading tracker, voice huddles with screen share, and GitHub/Notion/Google/Figma integrations.
 
 ## What's in it
 
@@ -43,14 +43,33 @@ This build covers all five phases of the v1 PRD. Voice huddles, the shareable we
 - Voice notes, with optional transcripts (Whisper-compatible endpoint, e.g. Groq).
 - Open rooms: tick "Open to everyone" and the room shows in Discover, where anyone signed in can join.
 
+**Profiles and rooms (v1.5)**
+- Profile photos: Google photo or Gravatar picked up automatically at sign-up; upload PNG, JPG, WebP or GIF (5 MB). Calm mode freezes animated photos.
+- **Profile & settings** page: photo, name, username, role, time zone, theme, reminders, calm mode.
+- Edit your own text messages (shows "edited"). Owners can rename the room, remove people (they're bounced out live) and delete the room.
+
+**Lock-in extras (v1.5)**
+- Reminders: browser notifications 10 minutes before a session in your rooms, at the start, and when a check-in is due while Byte is in the background. Plus **Add to calendar** (.ics with a 10-minute alarm) on scheduled sessions.
+- Reading tracker: pick **Reading** when dropping a goal, enter start and total pages, then the page you're on at each check-in. Page progress shows on the board, the session bar and the recap.
+- Weekly stat card on **Your stats**: a 1200×630 PNG (light or dark) of your last 7 days to download or share.
+
+**Voice huddles (v2)**
+- One click joins the room's voice huddle (LiveKit). Mute, share your screen (with tab audio), see who's talking. The header shows who's already in.
+
+**Integrations (v2)**
+- Link previews for GitHub repos, PRs and issues (with state), Notion, Google Docs/Sheets/Slides/Drive, Figma and any page with Open Graph tags. Private pages show a branded card without leaking content.
+- GitHub webhook per room: pushes, PRs, issues and releases post into the chat, and `@ai`, live notes and recaps can use them.
+
 ## Run it locally
 
 ### 1. Create a Supabase project
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor → New query** and run the two files in `supabase/migrations/`, **in order**:
+2. Open **SQL Editor → New query** and run the three files in `supabase/migrations/`, **in order**:
    1. `20261123000000_phase1.sql`
    2. `20261123010000_sessions_ai_focus.sql`
+   3. `20261123020000_grants.sql` (gives signed-in users access to the tables; without it you'll see "permission denied for table profiles")
+   4. `20261124000000_profiles_rooms_reading_integrations.sql` (photo storage, room management, message edits, reading goals, GitHub integration)
 
    (Or with the Supabase CLI: `supabase link`, then `supabase db push`.)
 
@@ -62,6 +81,11 @@ This build covers all five phases of the v1 PRD. Voice huddles, the shareable we
 
 **Authentication → Sign In / Providers**
 - Email: on by default. The built-in mailer is rate-limited, so add your own SMTP under **Authentication → Emails** before launch.
+- **Optional: 6-digit codes in sign-in emails** (sign-in still works if a link expires or an email scanner opens it first). New free Supabase projects can only edit email templates after setting up custom SMTP (see below). Once you have it, edit **Magic Link** and **Confirm signup** under **Authentication → Emails → Templates**, add this line under the link, then set `NEXT_PUBLIC_EMAIL_CODE=on` in `.env.local`:
+  ```html
+  <p>Or type this code in Byte: <strong>{{ .Token }}</strong></p>
+  ```
+- **Custom SMTP (needed before other people can sign up).** Supabase's built-in email only reaches members of your Supabase organization. Free options: Gmail with an app password (`smtp.gmail.com`, port 465, needs 2-step verification) or Brevo (300 emails/day, verify a single sender address). Add the details under **Authentication → Emails → SMTP Settings**.
 - Google: turn it on and paste a Client ID and Secret from [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (OAuth client, "Web application"). In Google, add the callback URL Supabase shows (`https://<project-ref>.supabase.co/auth/v1/callback`) as an authorised redirect URI.
 
 ### 3. Add your keys
@@ -77,6 +101,37 @@ cp .env.example .env.local
 | `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | AI notes, AI recaps, `@ai` | Your AI provider (see below) |
 | `GIPHY_API_KEY` | GIF picker | [developers.giphy.com](https://developers.giphy.com) |
 | `AI_TRANSCRIBE_*` | Voice transcripts | Any Whisper-compatible endpoint, e.g. Groq |
+| `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Voice huddles and screen share | [cloud.livekit.io](https://cloud.livekit.io): free Build plan, no card. Create a project → Settings → API keys. The URL starts with `wss://`. Without these, the Huddle button is hidden. |
+| `GITHUB_TOKEN` | Optional: richer GitHub previews (PR state, stars) and a higher rate limit | GitHub → Settings → Developer settings → fine-grained token with public read only |
+
+**Extra settings** (add to `.env.local` only if you need them):
+
+```dotenv
+# Turn off "thinking" on reasoning models (Nemotron, GLM, Qwen) so they answer directly
+AI_THINKING=off
+# Stronger model just for end-of-session recaps
+AI_RECAP_MODEL=
+# Voice note transcripts (OpenAI-compatible /audio/transcriptions, e.g. Groq Whisper)
+AI_TRANSCRIBE_BASE_URL=https://api.groq.com/openai/v1
+AI_TRANSCRIBE_API_KEY=
+AI_TRANSCRIBE_MODEL=whisper-large-v3-turbo
+# Public URL used in invite links (defaults to the browser's address)
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
+# Older Supabase projects show an "anon" key instead of a publishable key
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# Hide the Google button until Google sign-in is set up
+NEXT_PUBLIC_GOOGLE_AUTH=off
+# Show the 6-digit code box on sign-in (needs edited email templates, see above)
+NEXT_PUBLIC_EMAIL_CODE=on
+```
+
+Other AI providers, same three `AI_` values:
+
+| Provider | `AI_BASE_URL` | Example `AI_MODEL` |
+|---|---|---|
+| NVIDIA (default) | `https://integrate.api.nvidia.com/v1` | `nvidia/nemotron-3.5-bolt-e4b` (with `AI_THINKING=off`) |
+| OpenRouter | `https://openrouter.ai/api/v1` | `inclusionai/ling-3.2-flash:free` |
+| FreeLLMAPI (local) | `http://localhost:3001/v1` | `auto` |
 
 **Choosing an AI provider.** Byte speaks the OpenAI chat format, so switching is just these three values:
 
@@ -108,6 +163,13 @@ Use two browsers (or a normal and a private window) with two different emails.
 8. When time's up (or press **End now** in A), both **drop what they did**. The **recap card** posts when everyone's in.
 9. Open **Your stats** to see the score, streak and badges. Toggle **Calm mode** in the sidebar.
 10. In the room's **People** tab (as owner), turn on **Open to everyone** and check it shows in **Discover** for B.
+11. **Profile & settings** (sidebar): upload a photo or GIF, change your username, turn on **Lock-in reminders**.
+12. Edit a message (hover → pencil). As owner, rename the room, then remove B: B's window goes back home with a notice.
+13. Schedule a session 15 minutes out: **Add to calendar** downloads an .ics; with reminders on you get a notification 10 minutes before.
+14. Drop a **Reading** goal with pages, post a check-in with a page number, and watch the page bar on the board.
+15. With LiveKit keys set, click **Huddle** in both windows, talk, and share a screen.
+16. Paste a GitHub PR link in chat to see the preview. As owner, **People → Integrations → GitHub → Connect**, add the webhook on a repo, push a commit, and see it post.
+17. **Your stats → Your week, as a card**: download or share the PNG.
 
 ## Deploy to Vercel
 
@@ -128,14 +190,20 @@ src/
     app/                         signed-in area
       r/[roomId]/                a room (chat, board, session)
       discover/                  open rooms
-      me/                        your stats, streak, badges
+      me/                        your stats, streak, badges, weekly card
+      settings/                  profile photo, details, theme, reminders, calm mode
     api/
       gifs/                      GIF search proxy (keeps the GIPHY key server-side)
       sessions/[id]/summary/     live AI notes
       sessions/[id]/recap/       scoring + recap card
       rooms/[id]/ask/            @ai answers
       voice/transcribe/          voice note transcripts
-    actions.ts                   server actions: rooms, invites, calm mode, sign out
+      card/week/                 weekly stat card PNG
+      sessions/[id]/ics/         Add to calendar file
+      huddle/[roomId]/           LiveKit tokens and who's in the huddle
+      unfurl/                    link previews (blocks private network addresses)
+      integrations/github/[roomId]/  signed GitHub webhook
+    actions.ts                   server actions: rooms, invites, profile, photos, room management
   components/
     room/                        chat UI: room view, messages, composer, pickers, side panel, voice
     session/                     session bar, board, recap card, notes, focus tracker, start dialog
@@ -154,6 +222,11 @@ supabase/migrations/             schema, security rules, session logic, realtime
 - Check-ins, scores, streaks and badges are written only by database functions that check the rules (one update per check-in, drops only after the start, scores only after the end).
 - AI notes, recaps and AI messages are written only by the server with the secret key, after checking that the user is a member of the room.
 - Messages can be edited or deleted by their author, but never changed into another type or moved to another room.
-- GIF and AI keys never reach the browser.
+- GIF, AI, LiveKit and GitHub keys never reach the browser. Huddle tokens are issued only to room members and last 4 hours.
+- Photos upload only into your own folder; profiles accept photo links only from Byte's storage, Google or Gravatar.
+- GitHub webhooks are checked against a per-room secret (HMAC SHA-256). Only owners can see or change it.
+- Link previews never fetch private, local or cloud-metadata addresses, including after redirects.
 
-**Known limit:** typing indicators and reaction removals use Supabase broadcast on a channel named after the room's ID. Anyone who knew a room's ID could listen to those two signals (never message content). Before a big public launch, switch them to [private channels with Realtime Authorization](https://supabase.com/docs/guides/realtime/authorization).
+**Known limits:**
+- Reminders are browser notifications, so they need Byte open in a tab on that device. Use Add to calendar for phone reminders.
+- Typing indicators, reaction removals, huddle pings and remove/delete notices use Supabase broadcast on a channel named after the room's ID. Anyone who knew a room's ID could listen to those signals (never message content). Before a big public launch, switch them to [private channels with Realtime Authorization](https://supabase.com/docs/guides/realtime/authorization).

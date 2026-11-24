@@ -12,12 +12,13 @@ import {
   Spinner,
   TextAnswer,
 } from "@/components/setup-chat";
+import { useAuthHashError } from "@/lib/auth-hash";
 import { createClient } from "@/lib/supabase/client";
 import { parseInviteCode, suggestUsername } from "@/lib/utils";
 import { NAME_KEY } from "../signup/signup-chat";
 
 type Step = "name" | "username" | "role" | "tz" | "tzpick" | "room" | "roomname" | "invite" | "done";
-type Props = { userId: string; defaultName: string; email: string; signIn: string; next: string | null };
+type Props = { userId: string; defaultName: string; email: string; signIn: string; next: string | null; avatarUrl: string | null };
 
 const ROLES = ["Frontend", "Backend", "Full-stack", "Design", "Product", "Data / AI", "Just studying"];
 const ROOM_CHOICES = {
@@ -70,8 +71,9 @@ function firstLines(name: string): ChatLine[] {
       ];
 }
 
-function Chat({ userId, defaultName, email, signIn, next }: Props) {
+function Chat({ userId, defaultName, email, signIn, next, avatarUrl }: Props) {
   const router = useRouter();
+  useAuthHashError(); // you're signed in; a leftover "link expired" hash is just noise
   const supabase = useMemo(() => createClient(), []);
   const detectedTz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
   const allZones = useMemo(() => {
@@ -120,6 +122,7 @@ function Chat({ userId, defaultName, email, signIn, next }: Props) {
       username,
       role: role || null,
       timezone,
+      avatar_url: avatarUrl,
     });
     setBusy(false);
     if (err) {

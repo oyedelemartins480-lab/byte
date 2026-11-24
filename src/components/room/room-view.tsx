@@ -1,6 +1,7 @@
 "use client";
 
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { sessionEnd, sessionPhase } from "@/lib/session";
 import { createClient } from "@/lib/supabase/client";
@@ -27,6 +28,7 @@ import { RECAP_GRACE_MS, SessionBar, type CheckinFn } from "../session/session-b
 import { SessionDialog } from "../session/session-dialog";
 import { useFocusTracker } from "../session/use-focus-tracker";
 import { Composer } from "./composer";
+import { HuddleBar, HuddleButton, useHuddle } from "./huddle";
 import { MessageItem, type ReactionGroup } from "./message-item";
 import { SidePanel } from "./side-panel";
 
@@ -66,6 +68,7 @@ export type RoomViewProps = {
   calm: boolean;
   aiConfigured: boolean;
   transcribeOn: boolean;
+  huddleOn: boolean;
 };
 
 export function RoomView({
@@ -83,6 +86,7 @@ export function RoomView({
   calm,
   aiConfigured,
   transcribeOn,
+  huddleOn,
 }: RoomViewProps) {
   const supabase = useMemo(() => createClient(), []);
   const mounted = useSyncExternalStore(subscribe, () => true, () => false);
@@ -208,6 +212,29 @@ export function RoomView({
     catchUpRef.current = catchUp;
   }, [catchUp]);
 
+  // Someone removed us (or deleted the room): say so and go home.
+  const router = useRouter();
+  const leaveFor = useCallback(
+    (text: string) => {
+      try {
+        sessionStorage.setItem("byte:notice", text);
+      } catch {}
+      router.replace("/app");
+      router.refresh();
+    },
+    [router],
+  );
+  const leaveForRef = useRef(leaveFor);
+  useEffect(() => {
+    leaveForRef.current = leaveFor;
+  }, [leaveFor]);
+
+  const huddle = useHuddle({ roomId: room.id, meId, members: byId, channel: channelRef, enabled: huddleOn });
+  const huddleRefreshRef = useRef(huddle.refreshLobby);
+  useEffect(() => {
+    huddleRefreshRef.current = huddle.refreshLobby;
+  }, [huddle.refreshLobby]);
+
   // ── Realtime ─────────────────────────────────────────────────────────
   useEffect(() => {
     let subscribedOnce = false;
@@ -241,7 +268,7 @@ export function RoomView({
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "room_members", filter }, async (p) => {
         const row = p.new as { user_id: string; role: "owner" | "member" };
-        const { data } = await supabase.from("profiles").select("id, name, username, role").eq("id", row.user_id).maybeSingle();
+        const { data } = await supabase.from("profiles").select("id, name, username, role, avatar_url").eq("id", row.user_id).maybeSingle();
         if (data)
           setMembers((prev) =>
             prev.some((m) => m.id === data.id) ? prev : [...prev, { ...(data as Omit<Member, "member_role">), member_role: row.role }],
@@ -265,6 +292,14 @@ export function RoomView({
         setRecaps((prev) => [r, ...prev.filter((x) => x.session_id !== r.session_id)].slice(0, 3));
         setRecapBusy(false);
       })
+      .on("broadcast", { event: "member-removed" }, ({ payload }) => {
+        const uid = (payload as { user_id?: string }).user_id;
+        if (!uid) return;
+        if (uid === meId) leaveForRef.current("You were removed from this room.");
+        else setMembers((prev) => prev.filter((m) => m.id !== uid));
+      })
+      .on("broadcast", { event: "huddle-changed" }, () => void huddleRefreshRef.current())
+      .on("broadcast", { event: "room-deleted" }, () => leaveForRef.current("The owner deleted this room."))
       .on("broadcast", { event: "typing" }, ({ payload }) => {
         const uid = (payload as { user_id?: string }).user_id;
         if (uid && uid !== meId) setTyping((t) => ({ ...t, [uid]: Date.now() }));
@@ -366,9 +401,16 @@ export function RoomView({
   }, [session, phase, participants, now, requestRecap]);
 
   const checkin: CheckinFn = useCallback(
-    async (kind, body, met) => {
+    async (kind, body, met, pages) => {
       if (!session) return "No session.";
-      const { data, error } = await supabase.rpc("session_checkin", { sid: session.id, kind, body, met: met ?? null });
+      const { data, error } = await supabase.rpc("session_checkin", {
+        sid: session.id,
+        kind,
+        body,
+        met: met ?? null,
+        page: pages?.page ?? null,
+        total_pages: pages?.total ?? null,
+      });
       if (error) return error.message;
       if (data) upsert(data as Message);
       const { data: p } = await supabase
@@ -502,7 +544,7 @@ export function RoomView({
     setReplyTo(null);
     const ok = await insert(m);
 
-    if (ok && type === "text" && /^\s*@ai\b/i.test(body)) {
+    if (ok && type === "text" && /(^|\s)@ai\b/i.test(body)) {
       if (!aiConfigured) return showToast({ text: "@ai is off on this server. Add an AI provider to turn it on." });
       if (!room.ai_enabled) return showToast({ text: "The room owner turned AI off for this room." });
       setAiThinking(m.id);
@@ -599,6 +641,22 @@ export function RoomView({
             setReactions((prev) => prev.filter((r) => !(r.message_id === messageId && r.user_id === meId && r.emoji === emoji)));
         });
     }
+  }
+
+  function editMessage(m: Message, body: string) {
+    const original = m;
+    const editedAt = new Date().toISOString();
+    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, body, edited_at: editedAt } : x)));
+    void supabase
+      .from("messages")
+      .update({ body })
+      .eq("id", m.id)
+      .then(({ error }) => {
+        if (error) {
+          setMessages((prev) => prev.map((x) => (x.id === m.id ? original : x)));
+          showToast({ text: "Couldn't save your edit." });
+        }
+      });
   }
 
   function deleteMessage(m: Message) {
@@ -735,6 +793,7 @@ export function RoomView({
               <span className="sr-only sm:not-sr-only">{isLockin ? "Start lock-in" : "Start session"}</span>
             </button>
           )}
+          {huddleOn && <HuddleButton huddle={huddle} members={byId} />}
           <CopyButton
             text={origin ? `${origin}/join/${room.invite_code}` : ""}
             label="Invite link"
@@ -754,6 +813,8 @@ export function RoomView({
             <PanelIcon size={18} />
           </button>
         </header>
+
+        {huddleOn && <HuddleBar huddle={huddle} />}
 
         {session && sessionVisible && (
           <SessionBar
@@ -869,6 +930,7 @@ export function RoomView({
                         onReply={setReplyTo}
                         onReact={toggleReaction}
                         onDelete={deleteMessage}
+                        onEdit={editMessage}
                         onRetry={retry}
                         onJumpTo={jumpTo}
                       />
@@ -945,6 +1007,14 @@ export function RoomView({
           lastRecap={lastRecap}
           aiState={!aiConfigured ? "not-configured" : room.ai_enabled ? "on" : "room-off"}
           showBoard={!isLockin && sessionVisible}
+          onMemberRemoved={(uid) => {
+            setMembers((prev) => prev.filter((m) => m.id !== uid));
+            void channelRef.current?.send({ type: "broadcast", event: "member-removed", payload: { user_id: uid } });
+          }}
+          onRoomDeleted={() => {
+            void channelRef.current?.send({ type: "broadcast", event: "room-deleted", payload: {} });
+            leaveFor("Room deleted.");
+          }}
         />
       </aside>
 

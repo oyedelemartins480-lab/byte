@@ -9,6 +9,17 @@ const AUTH_PAGES = ["/login", "/signup"];
 export async function proxy(request: NextRequest) {
   if (!hasSupabaseEnv()) return NextResponse.next();
 
+  // If Supabase didn't accept our redirect URL, it sends the sign-in code to the Site URL
+  // (e.g. "/?code=…") instead of /auth/callback. Catch that and finish sign-in properly.
+  const strayCode = request.nextUrl.searchParams.get("code");
+  const strayHash = request.nextUrl.searchParams.get("token_hash");
+  if ((strayCode || strayHash) && request.nextUrl.pathname !== "/auth/callback") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    if (!url.searchParams.get("next")) url.searchParams.set("next", "/onboarding");
+    return NextResponse.redirect(url);
+  }
+
   let response = NextResponse.next({ request });
   const supabase = createServerClient(supabaseUrl(), supabaseKey(), {
     cookies: {
@@ -50,5 +61,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|stickers/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|stickers/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

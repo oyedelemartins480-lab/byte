@@ -1,4 +1,5 @@
 import { GOAL_MET_LABEL, clock } from "@/lib/session";
+import { PagesBar } from "./pages-bar";
 import type { Recap } from "@/lib/types";
 import { SparkleIcon } from "../icons";
 
@@ -39,6 +40,11 @@ export function RecapCard({ recap }: { recap: Recap }) {
                     <span className="text-muted">Did:</span> {p.done}
                   </>
                 )}
+                {p.pages_total ? (
+                  <span className="mt-1.5 block max-w-[280px]">
+                    <PagesBar read={p.pages_read ?? 0} total={p.pages_total} compact />
+                  </span>
+                ) : null}
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <span className="rounded-full border border-line px-2 py-0.5 text-xs">

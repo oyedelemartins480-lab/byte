@@ -25,13 +25,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!aiReady()) return json({ error: "@ai is off. Set AI_BASE_URL, AI_MODEL and SUPABASE_SECRET_KEY." }, 503);
 
   const body = (await req.json().catch(() => ({}))) as { question?: string; messageId?: string };
-  const question = String(body.question ?? "").replace(/^\s*@ai\b/i, "").trim().slice(0, 500);
+  const question = String(body.question ?? "")
+    .replace(/(^|\s)@ai\b[,:]?/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
   if (!question) return json({ error: "Ask a question after @ai." }, 400);
   const replyTo = body.messageId && UUID_RE.test(body.messageId) ? body.messageId : null;
 
   const ctx = await roomForUser(id);
   if ("error" in ctx) return ctx.error;
-  const { supabase, room } = ctx;
+  const { supabase, room, user } = ctx;
   if (!room.ai_enabled) return json({ error: "The room owner turned AI off for this room." }, 403);
 
   const admin = createAdminClient();
@@ -51,7 +55,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           .select("*")
           .eq("room_id", id)
           .is("deleted_at", null)
-          .in("type", ["text", "checkin", "progress", "done", "voice", "file"])
+          .in("type", ["text", "checkin", "progress", "done", "voice", "file", "integration"])
           .textSearch("fts", terms, { type: "websearch", config: "english" })
           .order("created_at", { ascending: false })
           .limit(20)
@@ -69,7 +73,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .select("*")
       .eq("room_id", id)
       .is("deleted_at", null)
-      .in("type", ["text", "checkin", "progress", "done", "voice", "file"])
+      .in("type", ["text", "checkin", "progress", "done", "voice", "file", "integration"])
       .order("created_at", { ascending: false })
       .limit(25),
   ]);
@@ -81,9 +85,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     ? recaps.data ?? []
     : (await supabase.from("session_recaps").select("summary, recap, created_at").eq("room_id", id).order("created_at", { ascending: false }).limit(2)).data ?? [];
 
-  const ids = Array.from(new Set(messages.map((m) => m.user_id).filter(Boolean))) as string[];
-  const { data: people } = ids.length ? await admin.from("profiles").select("id, name").in("id", ids) : { data: [] };
+  const ids = Array.from(new Set([user.id, ...messages.map((m) => m.user_id).filter(Boolean)])) as string[];
+  const { data: people } = await admin.from("profiles").select("id, name, timezone").in("id", ids);
   const names = new Map((people ?? []).map((p) => [p.id as string, p.name as string]));
+  const asker = (people ?? []).find((p) => p.id === user.id);
+  const tz = (asker?.timezone as string) || "UTC";
 
   const recapText = latestRecaps
     .map((r) => {
@@ -98,8 +104,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const answer = await chat({
       system: ASK_SYSTEM,
       maxTokens: 400,
-      user: `Room: ${room.name}\n\nPast session recaps:\n${recapText || "(none)"}\n\nRoom messages (UTC times):\n${
-        transcript(messages, names) || "(none)"
+      user: `Room: ${room.name}\nAsked by: ${asker?.name ?? "a member"}\n\nPast session recaps:\n${recapText || "(none)"}\n\nRoom messages:\n${
+        transcript(messages, names, tz) || "(none yet)"
       }\n\nQuestion: ${question}`,
     });
     const { error } = await admin.from("messages").insert({

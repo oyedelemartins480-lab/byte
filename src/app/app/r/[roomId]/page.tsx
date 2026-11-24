@@ -1,3 +1,4 @@
+import { livekitConfig } from "@/lib/livekit";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { aiReady, transcribeReady } from "@/lib/ai";
@@ -26,7 +27,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
 
   const [{ data: room }, { data: memberRows }, { data: msgRows }, { data: sessRows }, { data: recapRows }] = await Promise.all([
     supabase.from("rooms").select("*").eq("id", roomId).maybeSingle(),
-    supabase.from("room_members").select("role, profiles(id, name, username, role)").eq("room_id", roomId),
+    supabase.from("room_members").select("role, profiles(id, name, username, role, avatar_url)").eq("room_id", roomId),
     supabase.from("messages").select("*").eq("room_id", roomId).order("created_at", { ascending: false }).limit(PAGE + 1),
     supabase.from("sessions").select("*").eq("room_id", roomId).order("starts_at", { ascending: false }).limit(1),
     supabase.from("session_recaps").select("*").eq("room_id", roomId).order("created_at", { ascending: false }).limit(3),
@@ -86,6 +87,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       calm={Boolean(profile.calm_mode)}
       aiConfigured={aiReady()}
       transcribeOn={transcribeReady()}
+      huddleOn={livekitConfig().ready}
     />
   );
 }

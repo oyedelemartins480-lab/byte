@@ -135,8 +135,22 @@ p {
       opacity: 1;
     }
   }
-  .msg:focus-within .msg-actions {
+  /* Hidden until you hover or tab into a message. Kept in this layer (not an
+     opacity-0 utility) so the hover rule above can win. */
+  .msg-actions {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .msg:focus-within .msg-actions,
+  .msg-actions:has([aria-expanded="true"]) {
     opacity: 1;
+  }
+  /* Touch screens: show the toolbar on the message you tapped. */
+  @media (hover: none) {
+    .msg:active .msg-actions,
+    .msg:focus-within .msg-actions {
+      opacity: 1;
+    }
   }
 
   .scroll-thin {

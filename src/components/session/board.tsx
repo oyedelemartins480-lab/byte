@@ -2,7 +2,8 @@
 
 import { GOAL_MET_LABEL, clock, expectedCheckins, focusPct } from "@/lib/session";
 import type { Member, Message, Participant, Session } from "@/lib/types";
-import { initials } from "@/lib/utils";
+import { Avatar } from "@/components/avatar";
+import { PagesBar } from "./pages-bar";
 
 /** Everyone's goal, check-ins and drop for the current session, side by side. */
 export function Board({
@@ -56,13 +57,7 @@ export function Board({
                 className={`flex flex-col gap-3.5 rounded-2xl bg-surface p-[18px] ${isMe ? "border-[1.5px] border-fg" : "border border-line"}`}
               >
                 <div className="flex items-center gap-3">
-                  <span
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-                      isMe ? "bg-inv text-inv-fg" : "bg-sunk text-fg"
-                    }`}
-                  >
-                    {initials(m?.name ?? "?")}
-                  </span>
+                  <Avatar name={m?.name ?? "?"} url={m?.avatar_url} size={40} tone={isMe ? "inv" : "sunk"} />
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-[15px] font-semibold">{isMe ? "You" : m?.name ?? "Someone"}</span>
                     <span className="text-[13px] text-muted">{status}</span>
@@ -73,6 +68,7 @@ export function Board({
                 </div>
                 <div className="flex flex-col gap-2">
                   <span className="text-base font-medium leading-snug">{p.goal}</span>
+                  {p.goal_kind === "reading" && <PagesBar read={p.pages_read ?? 0} total={p.pages_total ?? null} />}
                   {expected > 0 && (
                     <>
                       <div className="h-1.5 overflow-hidden rounded-full bg-sunk" aria-hidden="true">
@@ -97,6 +93,9 @@ export function Board({
                             </span>
                           )}
                           {e.body}
+                          {typeof (e.meta as { page?: number }).page === "number" && (
+                            <span className="ml-1.5 whitespace-nowrap text-xs text-muted">· p. {(e.meta as { page: number }).page}</span>
+                          )}
                         </span>
                       </li>
                     ))}

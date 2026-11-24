@@ -62,6 +62,9 @@ export async function chat({
         model: model || c.model,
         temperature: 0.2,
         max_tokens: maxTokens,
+        // Thinking models (Nemotron, GLM, Qwen…) can spend the whole token budget reasoning
+        // and return no answer. AI_THINKING=off asks them to answer directly.
+        ...(process.env.AI_THINKING === "off" ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -75,7 +78,13 @@ export async function chat({
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const text = json.choices?.[0]?.message?.content ?? "";
     // Some reasoning models wrap their thinking in <think> tags; drop it.
-    return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    const answer = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    if (!answer) {
+      throw new Error(
+        "The model returned no answer (it may have used its whole budget thinking). Add AI_THINKING=off to .env.local, or pick a non-thinking model.",
+      );
+    }
+    return answer;
   } finally {
     clearTimeout(timer);
   }
@@ -111,8 +120,14 @@ export function parseNotes(text: string) {
 }
 
 /** Turns messages into compact lines for the model. GIFs, stickers and system lines never reach it. */
-export function transcript(messages: Message[], names: Map<string, string>) {
-  const t = (iso: string) => new Date(iso).toISOString().slice(11, 16);
+export function transcript(messages: Message[], names: Map<string, string>, timeZone = "UTC") {
+  let fmt: Intl.DateTimeFormat;
+  try {
+    fmt = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
+  } catch {
+    fmt = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+  }
+  const t = (iso: string) => fmt.format(new Date(iso));
   return messages
     .filter((m) => !m.deleted_at)
     .map((m) => {
@@ -120,6 +135,8 @@ export function transcript(messages: Message[], names: Map<string, string>) {
       const meta = m.meta as Record<string, unknown>;
       switch (m.type) {
         case "text":
+          // Earlier questions to @ai are noise for the model.
+          if (/(^|\s)@ai\b/i.test(m.body)) return null;
           return `[${t(m.created_at)}] ${who}: ${m.body.slice(0, 800)}`;
         case "checkin":
           return `[${t(m.created_at)}] ${who} set their goal: ${m.body}`;
@@ -131,6 +148,10 @@ export function transcript(messages: Message[], names: Map<string, string>) {
           return `[${t(m.created_at)}] ${who} shared a file: ${meta.name}`;
         case "voice":
           return meta.transcript ? `[${t(m.created_at)}] ${who} (voice note): ${String(meta.transcript).slice(0, 800)}` : null;
+        case "integration": {
+          const commits = (meta.commits as { message: string }[] | undefined)?.map((c) => c.message).join("; ");
+          return `[${t(m.created_at)}] GitHub (${meta.repo}): ${m.body}${commits ? ` — ${commits.slice(0, 400)}` : ""}`;
+        }
         default:
           return null;
       }
@@ -158,7 +179,11 @@ Rules:
 - tasks: open follow-ups for next time. blockers: anything still stuck.
 - Each item under 15 words. Only use what the input says.`;
 
-export const ASK_SYSTEM = `You are Byte AI, the assistant inside one team's chat room.
-Answer the question using ONLY the room history provided (messages and past session recaps).
-If the answer is not in the history, say you couldn't find it in this room's history.
-Be brief: at most 100 words. Say who said what and roughly when when it helps. No emoji. Plain text, no markdown headings.`;
+export const ASK_SYSTEM = `You are Byte AI, a friendly assistant inside a team's chat room in Byte, a focused work app.
+- Greetings or small talk: reply briefly and warmly, and mention one thing you can help with.
+- General questions (explain a concept, help word a message, think through a bug): answer helpfully and briefly.
+- Questions about THIS team's project, people, tasks, decisions, goals or past sessions: use ONLY the room history provided. Never invent tasks, decisions or facts. If the history doesn't have it, say so plainly and offer a next step in your own voice, e.g. "Start a lock-in and drop your goals, and I'll keep track of them."
+- Talk TO the person ("you"), like a helpful teammate. Never write in the third person about them, never write instructions to yourself ("Suggest…"), never repeat or restate the question.
+- GitHub activity in the history (commits, pull requests) counts as project history.
+- Times in the history are the asker's local time; use them as written.
+- At most 120 words. Plain text, no headings, no emoji.`;

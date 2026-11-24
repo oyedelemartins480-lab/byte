@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { UUID_RE, json, sessionForUser } from "@/lib/server-guards";
 import type { Message, SessionSummary } from "@/lib/types";
 
-const NOTE_TYPES = ["text", "checkin", "progress", "done", "file", "voice"];
+const NOTE_TYPES = ["text", "checkin", "progress", "done", "file", "voice", "integration"];
 
 /**
  * Updates the live AI notes for a running session. Any member's browser may call it;
@@ -43,9 +43,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const messages = (rows ?? []) as Message[];
   if (!messages.length) return json({ skipped: "Nothing new." }, 202);
 
-  const ids = Array.from(new Set(messages.map((m) => m.user_id).filter(Boolean))) as string[];
-  const { data: people } = await admin.from("profiles").select("id, name").in("id", ids);
+  const ids = Array.from(new Set([session.created_by, ...messages.map((m) => m.user_id).filter(Boolean)])) as string[];
+  const { data: people } = await admin.from("profiles").select("id, name, timezone").in("id", ids);
   const names = new Map((people ?? []).map((p) => [p.id as string, p.name as string]));
+  const tz = ((people ?? []).find((p) => p.id === session.created_by)?.timezone as string) || "UTC";
 
   try {
     const previous = prev
@@ -53,7 +54,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       : "(none yet)";
     const text = await chat({
       system: NOTES_SYSTEM,
-      user: `Session: ${session.title}\n\nPrevious notes:\n${previous}\n\nNew messages:\n${transcript(messages, names)}`,
+      user: `Session: ${session.title}\n\nPrevious notes:\n${previous}\n\nNew messages:\n${transcript(messages, names, tz)}`,
     });
     const notes = parseNotes(text);
     await admin.from("session_summaries").upsert({

@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   // Byte's screens are per-user and realtime, so pages render at request time.
   // Cache Components can be adopted later for the marketing pages.
   cacheComponents: false,
+  // The weekly stat card reads these fonts from disk at request time.
+  outputFileTracingIncludes: {
+    "/api/card/week": ["./src/fonts/og/**"],
+  },
   turbopack: {
     rules: {
       "*.css": {

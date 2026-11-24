@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HashIcon, TimerIcon } from "@/components/icons";
 import { parseInviteCode } from "@/lib/utils";
 
@@ -9,10 +9,29 @@ export function HomeActions() {
   const router = useRouter();
   const [link, setLink] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    let text = "";
+    try {
+      text = sessionStorage.getItem("byte:notice") ?? "";
+      sessionStorage.removeItem("byte:notice");
+    } catch {}
+    // Read once after mount: sessionStorage doesn't exist during server rendering.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (text) setNotice(text);
+  }, []);
   const open = (type: "build" | "lockin") => window.dispatchEvent(new CustomEvent("byte:new-room", { detail: type }));
 
   return (
     <div className="flex flex-col gap-4">
+      {notice && (
+        <p role="status" className="m-0 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+          {notice}
+          <button type="button" onClick={() => setNotice("")} className="btn text-[13px] font-medium text-muted underline">
+            Dismiss
+          </button>
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <button
           type="button"

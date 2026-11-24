@@ -11,7 +11,11 @@ import {
   TextAnswer,
   safeNext,
 } from "@/components/setup-chat";
+import { CODE_RE, EMAIL_CODE_ON, useAuthHashError } from "@/lib/auth-hash";
 import { createClient } from "@/lib/supabase/client";
+
+// Set NEXT_PUBLIC_GOOGLE_AUTH=off to hide Google sign-in (e.g. before it is set up in Supabase).
+const GOOGLE_ON = process.env.NEXT_PUBLIC_GOOGLE_AUTH !== "off";
 
 export const NAME_KEY = "byte:signup-name";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,6 +36,8 @@ export function SignupChat({ next: rawNext }: { next: string | null }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<"" | "email" | "google">("");
   const [cooldown, setCooldown] = useState(0);
+  const [code, setCode] = useState("");
+  const hashError = useAuthHashError();
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -47,14 +53,16 @@ export function SignupChat({ next: rawNext }: { next: string | null }) {
     lines.push({ from: "me", text: name });
     lines.push({
       from: "bot",
-      text: `Nice to meet you, ${name.split(" ")[0]}. How do you want to sign in? Google is quickest, or type your email and I'll send you a sign-in link. No password needed.`,
+      text: `Nice to meet you, ${name.split(" ")[0]}. ${GOOGLE_ON ? "How do you want to sign in? Google is quickest, or type your email and I'll send you a sign-in link." : "What's your email? I'll send you a sign-in link."} No password needed.`,
     });
   }
   if (step === "sent") {
     lines.push({ from: "me", text: email });
     lines.push({
       from: "bot",
-      text: `Done. Open the link I sent to ${email} on this device and we'll pick up right where we left off. Check spam if it's not there in a minute.`,
+      text: EMAIL_CODE_ON
+        ? `Done. Check ${email}: open the link on this device, or type the 6-digit code from the email below. Check spam if it's not there in a minute.`
+        : `Done. Open the link I sent to ${email} on this device and we'll pick up right where we left off. Check spam if it's not there in a minute.`,
     });
   }
 
@@ -103,7 +111,7 @@ export function SignupChat({ next: rawNext }: { next: string | null }) {
         autoComplete="name"
         maxLength={60}
         value={draft}
-        error={error}
+        error={error || hashError}
         onChange={(v) => {
           setDraft(v);
           setError("");
@@ -121,6 +129,7 @@ export function SignupChat({ next: rawNext }: { next: string | null }) {
   } else if (step === "method") {
     controls = (
       <>
+        {GOOGLE_ON && (
         <button
           type="button"
           onClick={google}
@@ -129,6 +138,7 @@ export function SignupChat({ next: rawNext }: { next: string | null }) {
         >
           {busy === "google" ? <Spinner /> : <GoogleIcon />} Continue with Google
         </button>
+        )}
         <TextAnswer
           id="signup-email"
           label="you@school.edu"
@@ -156,6 +166,37 @@ export function SignupChat({ next: rawNext }: { next: string | null }) {
   } else {
     controls = (
       <div className="flex flex-col gap-2">
+        {EMAIL_CODE_ON && (
+        <TextAnswer
+          id="signup-code"
+          label="6-digit code from the email"
+          type="text"
+          autoComplete="one-time-code"
+          maxLength={8}
+          value={code}
+          busy={busy === "email"}
+          onChange={(v) => {
+            setCode(v.replace(/\D/g, ""));
+            setError("");
+          }}
+          onSubmit={async () => {
+            if (!CODE_RE.test(code)) return setError("Type the 6-digit code from the email.");
+            setBusy("email");
+            const { error: err } = await createClient().auth.verifyOtp({ email, token: code, type: "email" });
+            if (err) {
+              setBusy("");
+              return setError(
+                err.message.toLowerCase().includes("expired")
+                  ? "That code expired. Tap “Resend the link” for a new one."
+                  : "That code didn't work. Check it and try again.",
+              );
+            }
+            // Full reload so the server sees the new session cookie.
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+            window.location.assign(`/onboarding${next ? `?next=${encodeURIComponent(next)}` : ""}`);
+          }}
+        />
+        )}
         <div className="flex flex-wrap gap-2">
           <button
             type="button"

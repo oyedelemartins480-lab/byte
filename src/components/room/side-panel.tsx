@@ -1,14 +1,17 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { leaveRoom, resetInvite } from "@/app/actions";
+import { deleteRoom, leaveRoom, removeMember, renameRoom, resetInvite } from "@/app/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { FileMeta, Member, Message, Participant, Recap, Room, Session, SessionSummary } from "@/lib/types";
-import { extractLinks, formatBytes, initials } from "@/lib/utils";
+import { extractLinks, formatBytes } from "@/lib/utils";
+import { Avatar } from "@/components/avatar";
+import { useConfirm } from "@/components/confirm-dialog";
 import { CopyButton } from "../copy-button";
 import { FileIcon, LinkIcon, XIcon } from "../icons";
 import { Board } from "../session/board";
 import { NotesPanel } from "../session/notes-panel";
+import { IntegrationsPanel } from "./integrations-panel";
 import { Spinner } from "../setup-chat";
 import { fmtTime } from "./message-item";
 
@@ -31,6 +34,8 @@ export function SidePanel({
   lastRecap,
   aiState,
   showBoard,
+  onMemberRemoved,
+  onRoomDeleted,
 }: {
   room: Room;
   meId: string;
@@ -48,12 +53,15 @@ export function SidePanel({
   lastRecap: Recap | null;
   aiState: "on" | "room-off" | "not-configured";
   showBoard: boolean;
+  onMemberRemoved: (userId: string) => void;
+  onRoomDeleted: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("session");
   const [code, setCode] = useState(room.invite_code);
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
   const isOwner = room.owner_id === meId;
+  const confirm = useConfirm();
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
 
   const live = messages.filter((m) => !m.deleted_at && !m.pending);
@@ -160,6 +168,7 @@ export function SidePanel({
                 <h3 id="settings-h" className="m-0 text-sm font-semibold">
                   Room settings
                 </h3>
+                <RenameRoom room={room} onRenamed={(name) => onRoomChange({ name })} />
                 <Toggle
                   label="AI notes and @ai"
                   hint="Live notes, recaps written by AI, and answers from the room's history."
@@ -183,13 +192,7 @@ export function SidePanel({
             <ul className="m-0 flex list-none flex-col gap-1 p-0">
               {members.map((m) => (
                 <li key={m.id} className="flex items-center gap-3 rounded-[10px] px-1 py-1.5">
-                  <span
-                    className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                      m.id === meId ? "bg-inv text-inv-fg" : "bg-sunk text-fg"
-                    }`}
-                  >
-                    {initials(m.name)}
-                  </span>
+                  <Avatar name={m.name} url={m.avatar_url} size={32} tone={m.id === meId ? "inv" : "sunk"} />
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-sm font-semibold">
                       {m.name}
@@ -200,18 +203,54 @@ export function SidePanel({
                       {m.role ? ` · ${m.role}` : ""}
                     </span>
                   </div>
-                  {m.member_role === "owner" && (
+                  {m.member_role === "owner" ? (
                     <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">Owner</span>
+                  ) : (
+                    isOwner && (
+                      <button
+                        type="button"
+                        disabled={pending}
+                        aria-label={`Remove ${m.name} from the room`}
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: `Remove ${m.name}?`,
+                            body: `They'll leave ${room.name} right away and can only come back with an invite link. Their messages stay.`,
+                            confirmLabel: "Remove",
+                            danger: true,
+                          });
+                          if (!ok) return;
+                          start(async () => {
+                            setError("");
+                            const res = await removeMember(room.id, m.id);
+                            if (res?.error) setError(res.error);
+                            else onMemberRemoved(m.id);
+                          });
+                        }}
+                        className="btn min-h-8 rounded-lg px-2 text-[13px] font-medium text-muted hover:text-err"
+                      >
+                        Remove
+                      </button>
+                    )
                   )}
                 </li>
               ))}
             </ul>
 
+            {isOwner && <IntegrationsPanel roomId={room.id} meId={meId} origin={origin} />}
+
+            {isOwner && <DeleteRoom room={room} onDeleted={onRoomDeleted} />}
+
             {!isOwner && (
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm(`Leave ${room.name}? You'll need a new invite link to come back.`))
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: `Leave ${room.name}?`,
+                    body: "You'll need an invite link to come back.",
+                    confirmLabel: "Leave room",
+                    danger: true,
+                  });
+                  if (ok)
                     start(async () => {
                       const res = await leaveRoom(room.id);
                       if (res?.error) setError(res.error);
@@ -279,6 +318,114 @@ export function SidePanel({
           ))}
       </div>
     </div>
+  );
+}
+
+function RenameRoom({ room, onRenamed }: { room: Room; onRenamed: (name: string) => void }) {
+  const [name, setName] = useState(room.name);
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<{ error?: string; ok?: boolean }>({});
+  const changed = name.trim() !== room.name && name.trim().length > 0;
+  return (
+    <form
+      className="flex flex-col gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!changed) return;
+        start(async () => {
+          const res = await renameRoom(room.id, name);
+          if (res?.error) setMsg({ error: res.error });
+          else {
+            setMsg({ ok: true });
+            onRenamed(name.trim());
+          }
+        });
+      }}
+    >
+      <label htmlFor="room-rename" className="text-sm font-medium">
+        Room name
+      </label>
+      <div className="flex gap-2">
+        <input
+          id="room-rename"
+          value={name}
+          maxLength={60}
+          onChange={(e) => {
+            setName(e.target.value);
+            setMsg({});
+          }}
+          className="min-h-10 min-w-0 flex-1 rounded-[10px] border border-line bg-bg px-3 text-sm text-fg outline-none focus-visible:border-fg focus-visible:ring-1 focus-visible:ring-fg"
+        />
+        <button type="submit" disabled={!changed || pending} className="btn min-h-10 rounded-[10px] bg-inv px-3.5 text-sm font-semibold text-inv-fg">
+          {pending ? <Spinner size={14} /> : "Rename"}
+        </button>
+      </div>
+      {msg.error && (
+        <p role="alert" className="m-0 text-xs text-err">
+          {msg.error}
+        </p>
+      )}
+      {msg.ok && (
+        <p role="status" className="m-0 text-xs text-muted">
+          Renamed for everyone.
+        </p>
+      )}
+    </form>
+  );
+}
+
+function DeleteRoom({ room, onDeleted }: { room: Room; onDeleted: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [pending, start] = useTransition();
+  const [error, setError] = useState("");
+  if (!open)
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="btn mt-auto self-start p-0 text-[13px] font-medium text-err underline">
+        Delete room
+      </button>
+    );
+  return (
+    <section aria-labelledby="delete-h" className="mt-auto flex flex-col gap-2.5 rounded-[14px] border border-err/50 p-3.5">
+      <h3 id="delete-h" className="m-0 text-sm font-semibold text-err">
+        Delete {room.name}?
+      </h3>
+      <p className="m-0 text-[13px] leading-normal text-muted">
+        Every message, file, session and recap in this room goes for everyone. This can&apos;t be undone. Type the room name to confirm.
+      </p>
+      <input
+        value={typed}
+        onChange={(e) => setTyped(e.target.value)}
+        aria-label="Type the room name to confirm"
+        placeholder={room.name}
+        autoComplete="off"
+        className="min-h-10 rounded-[10px] border border-line bg-bg px-3 text-sm text-fg outline-none focus-visible:border-err focus-visible:ring-1 focus-visible:ring-err"
+      />
+      {error && (
+        <p role="alert" className="m-0 text-xs text-err">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={() => setOpen(false)} className="btn min-h-10 rounded-[10px] px-3 text-sm font-medium text-fg">
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={typed.trim() !== room.name || pending}
+          onClick={() =>
+            start(async () => {
+              const res = await deleteRoom(room.id);
+              if (res?.error) setError(res.error);
+              else onDeleted();
+            })
+          }
+          className="btn min-h-10 rounded-[10px] bg-err px-3.5 text-sm font-semibold text-bg"
+        >
+          {pending ? <Spinner size={14} /> : null} Delete room
+        </button>
+      </div>
+    </section>
   );
 }
 
